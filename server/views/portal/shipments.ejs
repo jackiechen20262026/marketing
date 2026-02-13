@@ -1,0 +1,81 @@
+<%- include("../partials/portal_header", { title, user }) %>
+
+<div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:14px">
+  <div class="card">总订单<br/><div style="font-size:26px;font-weight:800"><%= stats.total %></div></div>
+  <div class="card">待处理<br/><div style="font-size:26px;font-weight:800"><%= stats.Pending %></div></div>
+  <div class="card">运输中<br/><div style="font-size:26px;font-weight:800"><%= stats.InTransit %></div></div>
+  <div class="card">已签收<br/><div style="font-size:26px;font-weight:800"><%= stats.Delivered %></div></div>
+  <div class="card">异常/退回<br/><div style="font-size:26px;font-weight:800"><%= (stats.Exception + stats.Returned) %></div></div>
+</div>
+
+<div class="card" style="margin-bottom:12px">
+  <form method="get" action="/portal/shipments" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <input name="q" value="<%= q %>" placeholder="搜索运单号/收件人/电话/公司" style="min-width:280px" />
+
+    <select name="status">
+      <option value="">全部物流状态</option>
+      <% statusOptions.forEach(s=>{ %>
+        <option value="<%= s %>" <%= s===status ? "selected" : "" %>><%= s %></option>
+      <% }) %>
+    </select>
+
+    <select name="pushStatus">
+      <option value="">全部推送状态</option>
+      <% pushStatusOptions.forEach(s=>{ %>
+        <option value="<%= s %>" <%= s===pushStatus ? "selected" : "" %>><%= s %></option>
+      <% }) %>
+    </select>
+
+    <button class="btn" type="submit">筛选</button>
+  </form>
+</div>
+
+<div class="card">
+  <div style="font-weight:800;margin-bottom:10px">订单列表</div>
+  <table>
+    <thead>
+      <tr>
+        <th>运单号</th>
+        <th>公司</th>
+        <th>收件人</th>
+        <th>物流状态</th>
+        <th>推送状态</th>
+        <th>更新时间</th>
+        <th>操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% rows.forEach(r=>{ %>
+        <tr>
+          <td>
+            <a href="/portal/shipments/<%= r.id %>"><%= r.waybillNo || r.id %></a>
+          </td>
+          <td>
+            <a href="/portal/leads/<%= r.leadId %>?tab=overview"><%= r.companyName %></a>
+          </td>
+          <td>
+            <div><%= r.receiverName || "-" %></div>
+            <div class="text-muted"><%= r.receiverPhone || "" %></div>
+          </td>
+          <td><span class="pill"><%= r.logisticsStatus %></span></td>
+          <td><span class="pill"><%= r.pushStatus %></span></td>
+          <td><%= r.updatedAt ? new Date(r.updatedAt).toLocaleString() : "-" %></td>
+          <td style="white-space:nowrap">
+            <a class="pill" href="/portal/shipments/<%= r.id %>">查看</a>
+            <% if (r.pushStatus === "Failed") { %>
+              <form method="post" action="/portal/shipments/<%= r.id %>/repush" style="display:inline">
+                <button class="btn" type="submit" style="margin-left:8px">重推</button>
+              </form>
+            <% } %>
+          </td>
+        </tr>
+      <% }) %>
+
+      <% if (!rows.length) { %>
+        <tr><td colspan="7" class="text-muted">暂无订单</td></tr>
+      <% } %>
+    </tbody>
+  </table>
+</div>
+
+<%- include("../partials/portal_footer") %>

@@ -1,0 +1,71 @@
+<%- include("../partials/portal_header", { title, user }) %>
+
+<div class="card" style="margin-bottom:12px">
+  <div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap">
+    <div style="flex:1;min-width:360px">
+      <div style="font-size:18px;font-weight:900">
+        订单：<%= shipment.waybillNo || shipment.id %>
+      </div>
+      <div class="text-muted" style="margin-top:6px">
+        公司：<a href="/portal/leads/<%= shipment.leadId %>?tab=overview"><%= shipment.companyName %></a>
+      </div>
+      <div class="text-muted" style="margin-top:6px">
+        物流状态：<span class="pill"><%= shipment.logisticsStatus %></span>
+        &nbsp;&nbsp;推送状态：<span class="pill"><%= shipment.pushStatus %></span>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <% if (shipment.pushStatus === "Failed") { %>
+        <form method="post" action="/portal/shipments/<%= shipment.id %>/repush">
+          <button class="btn" type="submit">重推面单</button>
+        </form>
+      <% } %>
+      <a class="pill" href="/portal/shipments">返回列表</a>
+    </div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 360px;gap:12px;align-items:start">
+  <div class="card">
+    <div style="font-weight:900;margin-bottom:10px">物流轨迹</div>
+    <% if (!events.length) { %>
+      <div class="text-muted">暂无轨迹（后续接圆通查询接口后可自动写入 shipment_events）</div>
+    <% } %>
+
+    <% events.forEach(e=>{ %>
+      <div style="padding:10px 0;border-bottom:1px solid #e5e7eb">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <span class="pill"><%= e.status || "-" %></span>
+          <div style="margin-left:auto" class="text-muted">
+            <%= new Date(e.eventTime || e.createdAt).toLocaleString() %>
+          </div>
+        </div>
+        <% if (e.location) { %><div class="text-muted" style="margin-top:6px"><%= e.location %></div><% } %>
+        <% if (e.description) { %><div style="margin-top:6px"><%= e.description %></div><% } %>
+      </div>
+    <% }) %>
+  </div>
+
+  <div class="card">
+    <div style="font-weight:900;margin-bottom:10px">收寄件信息</div>
+    <table>
+      <tr><th style="width:140px">承运商</th><td><%= shipment.carrier %></td></tr>
+      <tr><th>运单号</th><td><%= shipment.waybillNo || "-" %></td></tr>
+      <tr><th>收件人</th><td><%= shipment.receiverName || "-" %></td></tr>
+      <tr><th>电话</th><td><%= shipment.receiverPhone || "-" %></td></tr>
+      <tr><th>国家</th><td><%= shipment.receiverCountry || "-" %></td></tr>
+      <tr><th>地址</th><td><%= shipment.receiverAddress || "-" %></td></tr>
+      <tr><th>创建时间</th><td><%= new Date(shipment.createdAt).toLocaleString() %></td></tr>
+      <tr><th>更新时间</th><td><%= new Date(shipment.updatedAt).toLocaleString() %></td></tr>
+    </table>
+
+    <div style="margin-top:10px" class="text-muted">
+      客户联系人：<%= shipment.contactName || "-" %><br/>
+      客户邮箱：<%= shipment.leadEmail || "-" %><br/>
+      客户电话：<%= shipment.leadPhone || "-" %>
+    </div>
+  </div>
+</div>
+
+<%- include("../partials/portal_footer") %>

@@ -1,0 +1,77 @@
+<%- include("../partials/portal_header", { title, user }) %>
+
+<div class="card" style="margin-bottom:12px">
+  <form method="get" action="/portal/workflow" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <div>阶段：</div>
+    <select name="stage" style="padding:8px;border-radius:10px">
+      <% stages.forEach(s=>{ %>
+        <option value="<%= s %>" <%= s===stage ? "selected" : "" %>><%= s %></option>
+      <% }) %>
+    </select>
+
+    <input name="q" value="<%= q %>" placeholder="搜索公司/联系人/邮箱/电话" style="padding:8px;border-radius:10px;min-width:260px"/>
+
+    <button class="btn" type="submit">筛选</button>
+  </form>
+</div>
+
+<div class="card" style="margin-bottom:12px">
+  <div style="font-weight:700;margin-bottom:8px">阶段统计</div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <% stageCounts.forEach(row=>{ %>
+      <a class="pill" href="/portal/workflow?stage=<%= encodeURIComponent(row.stage) %>">
+        <%= row.stage %> · <%= row.cnt %>
+      </a>
+    <% }) %>
+  </div>
+</div>
+
+<div class="card">
+  <div style="font-weight:800;margin-bottom:10px">客户列表（<%= stage %>）</div>
+  <table>
+    <thead>
+      <tr>
+        <th>公司</th>
+        <th>联系人</th>
+        <th>电话</th>
+        <th>邮箱</th>
+        <th>优先级</th>
+        <th>来源</th>
+        <th>更新时间</th>
+        <th>推进</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% leads.forEach(l=>{ %>
+        <tr>
+          <td><a href="/portal/leads/<%= l.id %>?tab=overview"><%= l.companyName %></a></td>
+          <td><%= l.contactName || "-" %></td>
+          <td><%= l.phone || "-" %></td>
+          <td><%= l.email || "-" %></td>
+          <td><%= l.priority || "-" %></td>
+          <td><%= l.source || "-" %></td>
+          <td><%= l.updatedAt ? new Date(l.updatedAt).toLocaleString() : "-" %></td>
+          <td>
+            <form method="post" action="/portal/workflow/<%= l.id %>/move" style="display:flex;gap:8px;align-items:center">
+              <% const next = nextStageMap[l.stage] || ""; %>
+              <select name="toStage" style="padding:6px;border-radius:10px">
+                <% if (next) { %>
+                  <option value="<%= next %>">下一步：<%= next %></option>
+                <% } %>
+                <option value="退件">退件</option>
+                <option value="已关闭">已关闭</option>
+              </select>
+              <input name="note" placeholder="备注(可选)" style="padding:6px;border-radius:10px;width:140px"/>
+              <button class="btn" type="submit">提交</button>
+            </form>
+          </td>
+        </tr>
+      <% }) %>
+      <% if (!leads.length) { %>
+        <tr><td colspan="8" style="color:#b8c7ea">该阶段暂无数据</td></tr>
+      <% } %>
+    </tbody>
+  </table>
+</div>
+
+<%- include("../partials/portal_footer") %>

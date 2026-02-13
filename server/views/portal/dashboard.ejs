@@ -1,0 +1,16 @@
+<%- include("../partials/portal_header", { title, user }) %>
+
+<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px">
+  <div class="card">总线索数<br/><div style="font-size:26px;font-weight:800"><%= stats.totalLeads %></div></div>
+  <div class="card">待跟进<br/><div style="font-size:26px;font-weight:800"><%= stats.needFollow %></div></div>
+  <div class="card">已成交<br/><div style="font-size:26px;font-weight:800"><%= stats.converted %></div></div>
+  <div class="card">本月新增<br/><div style="font-size:26px;font-weight:800"><%= stats.monthNew %></div></div>
+</div>
+
+<div class="card">
+  <div style="font-weight:700;margin-bottom:8px">快捷入口</div>
+  <a class="btn" href="/portal/workflow">进入工作流看板</a>
+  <a class="btn" href="/portal/leads" style="margin-left:8px">查看线索列表</a>
+</div>
+
+<%- include("../partials/portal_footer") %>
