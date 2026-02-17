@@ -1,0 +1,61 @@
+<%- include('../partials/portal_header') %>
+
+<div class="card" style="margin-bottom:14px">
+  <h2 style="margin:0 0 8px">用户页（员工 / 主管 / Admin）</h2>
+  <div class="text-muted">管理员可新建账号并调整角色，主管可查看分组。</div>
+  <% if (msg === 'created') { %><div style="margin-top:8px;color:#166534">已创建用户</div><% } %>
+  <% if (msg === 'updated') { %><div style="margin-top:8px;color:#166534">已更新角色</div><% } %>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:14px">
+  <div class="card"><div class="text-muted">Admin</div><div style="font-size:28px;font-weight:800"><%= groups.admin.length %></div></div>
+  <div class="card"><div class="text-muted">主管</div><div style="font-size:28px;font-weight:800"><%= groups.supervisor.length %></div></div>
+  <div class="card"><div class="text-muted">员工</div><div style="font-size:28px;font-weight:800"><%= groups.employee.length %></div></div>
+</div>
+
+<% if (user.role === 'Admin') { %>
+<div class="card" style="margin-bottom:14px">
+  <h3 style="margin-top:0">新增用户</h3>
+  <form method="post" action="/portal/users" style="display:flex;gap:8px;flex-wrap:wrap">
+    <input name="username" placeholder="用户名" required />
+    <select name="role">
+      <option value="Salesperson">员工</option>
+      <option value="Supervisor">主管</option>
+      <option value="Admin">Admin</option>
+    </select>
+    <button class="btn" type="submit">创建</button>
+  </form>
+</div>
+<% } %>
+
+<div class="card">
+  <h3 style="margin-top:0">用户列表</h3>
+  <table>
+    <thead><tr><th>用户名</th><th>角色</th><th>创建时间</th><th>操作</th></tr></thead>
+    <tbody>
+    <% [...groups.admin, ...groups.supervisor, ...groups.employee].forEach(u=> { %>
+      <tr>
+        <td><%= u.username %></td>
+        <td><span class="pill"><%= roleLabel[u.role] || u.role %></span></td>
+        <td><%= u.createdAt %></td>
+        <td>
+          <% if (user.role === 'Admin') { %>
+            <form method="post" action="/portal/users/<%= u.id %>/role" style="display:flex;gap:6px">
+              <select name="role">
+                <option value="Salesperson" <%= u.role==='Salesperson'?'selected':'' %>>员工</option>
+                <option value="Supervisor" <%= u.role==='Supervisor'?'selected':'' %>>主管</option>
+                <option value="Admin" <%= u.role==='Admin'?'selected':'' %>>Admin</option>
+              </select>
+              <button class="btn btn-ghost" type="submit">更新</button>
+            </form>
+          <% } else { %>
+            <span class="text-muted">仅 Admin 可修改</span>
+          <% } %>
+        </td>
+      </tr>
+    <% }) %>
+    </tbody>
+  </table>
+</div>
+
+<%- include('../partials/portal_footer') %>

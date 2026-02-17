@@ -248,3 +248,29 @@ npm run dev
   - 执行 `db/schema.sql` 建表与初始数据
 - 默认读取 `.env`，未配置时使用默认值（`127.0.0.1:3306`, `root`, `marketing`）。
 - 若报连接失败，请先确认 MySQL 服务已启动并且账号密码正确。
+
+## 12) 圆通 API 配置与退单重试
+### 配置入口
+- 页面：`/portal/settings/yuantong`
+- 权限：Admin / Supervisor 可访问与修改
+
+### 配置步骤
+1. 填写 `base_url`、`app_key`、`app_secret`、`customer_code`
+2. 勾选“启用圆通推送”并保存
+3. 点击“测试连通性”验证可用性
+
+### 退单推送与重试
+- 在订单详情页点击“标记退件并推圆通”会：
+  - 将订单状态设为 `Returned`
+  - 调用圆通推送接口
+  - 在 `courier_api_logs` 写请求/响应日志
+  - 在 `shipment_events` 写成功/失败事件
+- 若失败，可点击“重试退单推送”触发 `/portal/returns/:id/retry-yto`。
+
+### 排查命令
+```sql
+SELECT id, courier_code, biz_type, biz_id, success, http_status, error_message, created_at
+FROM courier_api_logs
+ORDER BY id DESC
+LIMIT 50;
+```

@@ -1,11 +1,24 @@
 import type { Router } from "express";
 import { Router as createRouter } from "express";
 import { db } from "../_core/db";
+import { yuantongService } from "../services/yuantong.service";
 
 type User = { id: string; name: string; role: "Admin" | "Supervisor" | "Salesperson" };
 
+const ROLE_LABEL: Record<User["role"], string> = {
+  Admin: "管理员",
+  Supervisor: "主管",
+  Salesperson: "员工",
+};
+
 function requireAuth(req: any, _res: any, next: any) {
-  const user: User = { id: "u_admin_001", name: "admin", role: "Admin" };
+  const roleKey = String(req.query?.as || "").toLowerCase();
+  const role: User["role"] = roleKey === "supervisor" ? "Supervisor" : roleKey === "employee" ? "Salesperson" : "Admin";
+  const user: User = {
+    id: role === "Admin" ? "u_admin_001" : role === "Supervisor" ? "u_super_001" : "u_emp_001",
+    name: role === "Admin" ? "admin" : role === "Supervisor" ? "supervisor" : "employee",
+    role,
+  };
   req.user = user;
   next();
 }
@@ -28,6 +41,26 @@ const ALL_STAGES = ["已导入", "已筛选", "已发册", "跟踪中", "已签�
 function buildLeadScopeWhere(user: User) {
   if (user.role === "Admin") return { whereSql: "1=1", params: {} as any };
   return { whereSql: "owner_id = :uid", params: { uid: user.id } as any };
+}
+
+
+
+function requireRole(roles: User["role"][]) {
+  return (req: any, res: any, next: any) => {
+    const user = req.user as User;
+    if (!roles.includes(user.role)) return res.status(403).send("无权限执行此操作");
+    return next();
+  };
+}
+
+function canManageUsers(user: User) {
+  return user.role === "Admin" || user.role === "Supervisor";
+}
+
+function maskSecret(value: string | null | undefined) {
+  if (!value) return "";
+  if (value.length <= 6) return "*".repeat(value.length);
+  return `${value.slice(0, 3)}***${value.slice(-3)}`;
 }
 
 function parseIds(input: unknown): string[] {
@@ -84,6 +117,96 @@ export function portalRoutes(): Router {
         monthNew: monthNew?.c ?? 0,
       },
     });
+  });
+
+  r.get("/users", async (req, res) => {
+    const user = req.user as User;
+    if (!canManageUsers(user)) return res.status(403).send("无权限访问用户页");
+
+    const [rows] = await db.query<any[]>(
+      `SELECT id, username, role, created_at AS createdAt
+       FROM users
+       ORDER BY FIELD(role, 'Admin', 'Supervisor', 'Salesperson'), created_at DESC`
+    );
+
+    const groups = {
+      admin: rows.filter(x => x.role === "Admin"),
+      supervisor: rows.filter(x => x.role === "Supervisor"),
+      employee: rows.filter(x => x.role === "Salesperson"),
+    };
+
+    res.render("portal/users", { title: "Users", user, groups, roleLabel: ROLE_LABEL, msg: String(req.query.msg || "") });
+  });
+
+  r.post("/users", requireRole(["Admin"]), async (req, res) => {
+    const username = String(req.body.username || "").trim();
+    const roleInput = String(req.body.role || "Salesperson").trim();
+    const role = roleInput === "Admin" || roleInput === "Supervisor" ? roleInput : "Salesperson";
+    if (!username) return res.status(400).send("username required");
+
+    const id = `u_${Math.random().toString(36).slice(2, 10)}`;
+    await db.query(`INSERT INTO users(id, username, role, created_at) VALUES(:id, :username, :role, NOW())`, { id, username, role });
+    res.redirect("/portal/users?msg=created");
+  });
+
+  r.post("/users/:id/role", requireRole(["Admin"]), async (req, res) => {
+    const id = req.params.id;
+    const roleInput = String(req.body.role || "Salesperson").trim();
+    const role = roleInput === "Admin" || roleInput === "Supervisor" ? roleInput : "Salesperson";
+    await db.query(`UPDATE users SET role=:role WHERE id=:id`, { id, role });
+    res.redirect("/portal/users?msg=updated");
+  });
+
+  r.get("/settings/yuantong", requireRole(["Admin", "Supervisor"]), async (req, res) => {
+    const user = req.user as User;
+    const config = await yuantongService.getConfigMasked();
+
+    const [logs] = await db.query<any[]>(
+      `SELECT id, biz_type AS bizType, biz_id AS bizId, http_status AS httpStatus,
+              success, error_message AS errorMessage, created_at AS createdAt
+       FROM courier_api_logs
+       WHERE courier_code='yto'
+       ORDER BY created_at DESC
+       LIMIT 30`
+    );
+
+    res.render("portal/yto_settings", {
+      title: "YTO Settings",
+      user,
+      config,
+      logs,
+      saved: String(req.query.saved || ""),
+      tested: String(req.query.tested || ""),
+      err: String(req.query.err || ""),
+    });
+  });
+
+  r.post("/settings/yuantong", requireRole(["Admin", "Supervisor"]), async (req, res) => {
+    const baseUrl = String(req.body.baseUrl || "").trim();
+    const appKey = String(req.body.appKey || "").trim();
+    const appSecret = String(req.body.appSecret || "");
+    const customerCode = String(req.body.customerCode || "");
+    const enabled = String(req.body.enabled || "") === "1";
+
+    if (!baseUrl || !appKey) return res.status(400).send("baseUrl and appKey required");
+
+    await yuantongService.saveConfig({ baseUrl, appKey, appSecret, customerCode, enabled });
+    res.redirect("/portal/settings/yuantong?saved=1");
+  });
+
+  r.post("/settings/yuantong/test", requireRole(["Admin", "Supervisor"]), async (_req, res) => {
+    const cfg = await yuantongService.getConfig();
+    if (!cfg) return res.redirect("/portal/settings/yuantong?err=no_config");
+
+    const result = await yuantongService.request({
+      method: "yto.open.health.check",
+      bizType: "connectivity_test",
+      bizId: `test_${Date.now()}`,
+      payload: { ping: true, ts: Date.now() },
+    });
+
+    if (!result.ok) return res.redirect("/portal/settings/yuantong?tested=0");
+    return res.redirect("/portal/settings/yuantong?tested=1");
   });
 
   r.get("/lead-pool", async (req, res) => {
@@ -595,6 +718,83 @@ export function portalRoutes(): Router {
     );
 
     res.render("portal/shipment_detail", { title: `Shipment · ${shipment.waybillNo || shipment.id}`, user, shipment, events });
+  });
+
+  r.post("/shipments/:id/mark-returned", async (req, res) => {
+    const user = req.user as User;
+    const scope = buildLeadScopeWhere(user);
+    const id = req.params.id;
+
+    const [[shipment]] = await db.query<any[]>(
+      `SELECT s.id, s.waybill_no AS waybillNo, s.receiver_name AS receiverName,
+              s.receiver_phone AS receiverPhone, s.receiver_address AS receiverAddress,
+              s.receiver_country AS receiverCountry
+       FROM shipments s
+       INNER JOIN leads l ON l.id = s.lead_id
+       WHERE s.id=:id AND ${scope.whereSql}
+       LIMIT 1`,
+      { ...scope.params, id }
+    );
+    if (!shipment) return res.status(404).send("Shipment not found");
+
+    await db.query(`UPDATE shipments SET logistics_status='Returned', updated_at=NOW() WHERE id=:id`, { id });
+
+    const pushResult = await yuantongService.pushReturnOrder({
+      bizId: id,
+      waybillNo: shipment.waybillNo || null,
+      receiverName: shipment.receiverName || null,
+      receiverPhone: shipment.receiverPhone || null,
+      receiverAddress: shipment.receiverAddress || null,
+      receiverCountry: shipment.receiverCountry || null,
+    });
+
+    await db.query(
+      `INSERT INTO shipment_events(shipment_id, event_time, status, description, location, created_at)
+       VALUES(:sid, NOW(), :status, :description, 'SYSTEM', NOW())`,
+      {
+        sid: id,
+        status: pushResult.ok ? "ReturnPushed" : "ReturnPushFailed",
+        description: pushResult.ok ? "退单已推送到圆通" : `退单推送失败: ${String(pushResult.error || "unknown")}`,
+      }
+    );
+
+    res.redirect(`/portal/shipments/${encodeURIComponent(id)}`);
+  });
+
+  r.post("/returns/:id/retry-yto", async (req, res) => {
+    const id = req.params.id;
+
+    const [[shipment]] = await db.query<any[]>(
+      `SELECT id, waybill_no AS waybillNo, receiver_name AS receiverName,
+              receiver_phone AS receiverPhone, receiver_address AS receiverAddress,
+              receiver_country AS receiverCountry
+       FROM shipments
+       WHERE id=:id
+       LIMIT 1`,
+      { id }
+    );
+    if (!shipment) return res.status(404).send("Shipment not found");
+
+    const result = await yuantongService.pushReturnOrder({
+      bizId: id,
+      waybillNo: shipment.waybillNo || null,
+      receiverName: shipment.receiverName || null,
+      receiverPhone: shipment.receiverPhone || null,
+      receiverAddress: shipment.receiverAddress || null,
+      receiverCountry: shipment.receiverCountry || null,
+    });
+
+    await db.query(
+      `INSERT INTO shipment_events(shipment_id, event_time, status, description, location, created_at)
+       VALUES(:sid, NOW(), :status, :description, 'SYSTEM', NOW())`,
+      {
+        sid: id,
+        status: result.ok ? "ReturnRetryPushed" : "ReturnRetryFailed",
+        description: result.ok ? "退单重试成功" : `退单重试失败: ${String(result.error || "unknown")}`,
+      }
+    );
+
+    res.redirect(`/portal/shipments/${encodeURIComponent(id)}`);
   });
 
   r.post("/shipments/:id/repush", async (req, res) => {

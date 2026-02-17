@@ -97,4 +97,38 @@ CREATE TABLE IF NOT EXISTS shipment_events (
   INDEX idx_shipment_events_sid (shipment_id)
 );
 
+
+
+CREATE TABLE IF NOT EXISTS courier_integrations (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  courier_code VARCHAR(32) NOT NULL,
+  name VARCHAR(64) NOT NULL,
+  base_url VARCHAR(255) NOT NULL,
+  app_key VARCHAR(255) NOT NULL,
+  app_secret VARCHAR(255) NOT NULL,
+  customer_code VARCHAR(128) NULL,
+  enabled TINYINT NOT NULL DEFAULT 0,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_courier_code (courier_code)
+);
+
+CREATE TABLE IF NOT EXISTS courier_api_logs (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  courier_code VARCHAR(32) NOT NULL,
+  biz_type VARCHAR(32) NOT NULL,
+  biz_id VARCHAR(64) NOT NULL,
+  request_url VARCHAR(255) NOT NULL,
+  request_body JSON NULL,
+  response_body JSON NULL,
+  http_status INT NULL,
+  success TINYINT NOT NULL DEFAULT 0,
+  error_message VARCHAR(500) NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_courier_api_biz (courier_code, biz_type, biz_id),
+  INDEX idx_courier_api_created_at (created_at)
+);
+
 INSERT IGNORE INTO users (id, username, role) VALUES ('u_admin_001', 'admin', 'Admin');
+INSERT IGNORE INTO users (id, username, role) VALUES ('u_super_001', 'supervisor', 'Supervisor');
+INSERT IGNORE INTO users (id, username, role) VALUES ('u_emp_001', 'employee', 'Salesperson');
