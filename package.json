@@ -11,7 +11,8 @@
     "check": "tsc --noEmit",
     "format": "prettier --write .",
     "test": "vitest run",
-    "db:push": "drizzle-kit generate && drizzle-kit migrate"
+    "db:push": "drizzle-kit generate && drizzle-kit migrate",
+    "db:init": "node scripts/init-db.mjs"
   },
   "dependencies": {
     "@trpc/client": "^11.6.0",

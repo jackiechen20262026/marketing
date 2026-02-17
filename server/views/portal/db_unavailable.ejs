@@ -1,0 +1,26 @@
+<%- include('../partials/portal_header', { title, user }) %>
+
+<section class="card" style="max-width: 900px; margin: 24px auto;">
+  <h2>数据库连接不可用</h2>
+  <p>当前页面 <code><%= requestPath %></code> 依赖 MySQL，系统已拦截错误并给出恢复步骤，避免请求长时间卡住。</p>
+
+  <div style="margin-top: 16px;">
+    <h3>请先检查以下配置</h3>
+    <ul>
+      <li>DB_HOST: <code><%= dbHost %></code></li>
+      <li>DB_PORT: <code><%= dbPort %></code></li>
+      <li>DB_NAME: <code><%= dbName %></code></li>
+    </ul>
+  </div>
+
+  <div style="margin-top: 16px;">
+    <h3>快速恢复</h3>
+    <ol>
+      <li>确认 MySQL 服务已启动。</li>
+      <li>在项目根目录执行建表：<code>mysql -u &lt;user&gt; -p &lt;db_name&gt; &lt; db/schema.sql</code></li>
+      <li>确认 <code>.env</code> 与数据库一致后刷新页面。</li>
+    </ol>
+  </div>
+</section>
+
+<%- include('../partials/portal_footer') %>
