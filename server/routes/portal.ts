@@ -215,9 +215,120 @@ export function portalRoutes(): Router {
   });
 
 
-  r.get("/lead-pool", requirePerm("lead.view"), (req, res) => {
-    const query = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
-    return res.redirect(`/portal/leads${query}`);
+  r.get("/lead-pool", requirePerm("lead.view"), async (req, res) => {
+    const user = req.user as User;
+    const scope = ownerScope(user);
+    const q = String(req.query.q || "").trim();
+    const country = String(req.query.country || "").trim();
+    const source = String(req.query.source || "").trim();
+    const where = [`${scope.sql}`];
+    const params: any = { ...scope.params, qLike: `%${q}%`, country, source };
+
+    if (q) where.push("(company_name LIKE :qLike OR contact_name LIKE :qLike OR phone LIKE :qLike OR city LIKE :qLike)");
+    if (country) where.push("country=:country");
+    if (source) where.push("source=:source");
+
+    const [rows] = await db.query<any[]>(
+      `SELECT id,company_name AS companyName,contact_name AS contactName,email,phone,country,workflow_stage AS stage
+       FROM leads
+       WHERE ${where.join(" AND ")}
+       ORDER BY updated_at DESC
+       LIMIT 300`,
+      params
+    );
+
+    const [sources] = await db.query<any[]>(`SELECT DISTINCT source FROM leads WHERE source IS NOT NULL AND source<>'' ORDER BY source ASC`);
+    res.render("portal/lead_pool", { title: "Lead Pool", user, q, country, source, rows, sources });
+  });
+
+  r.post("/lead-pool/create", requirePerm("lead.edit"), async (req, res) => {
+    const user = req.user as User;
+    const id = `l_${Math.random().toString(36).slice(2, 10)}`;
+    const companyName = String(req.body.companyName || "").trim();
+    if (!companyName) return res.status(400).send("companyName required");
+
+    const street = String(req.body.street || "").trim();
+    const houseNumber = String(req.body.houseNumber || "").trim();
+
+    await db.query(
+      `INSERT INTO leads(
+        id,company_name,contact_name,email,phone,street,house_number,postal_code,city,country,social_credit_code,website,category,amazon_shop_url,company_profile,brand_json,address,
+        source,priority,owner_id,workflow_stage,brochure_sent_count,visit_count,created_at,updated_at
+      ) VALUES(
+        :id,:companyName,:contactName,:email,:phone,:street,:houseNumber,:postalCode,:city,:country,:socialCreditCode,:website,:category,:amazonShopUrl,:companyProfile,:brandJson,:address,
+        :source,:priority,:ownerId,'已导入',0,0,NOW(),NOW()
+      )`,
+      {
+        id,
+        companyName,
+        contactName: String(req.body.contactName || "") || null,
+        email: String(req.body.email || "") || null,
+        phone: String(req.body.phone || "") || null,
+        street: street || null,
+        houseNumber: houseNumber || null,
+        postalCode: String(req.body.postalCode || "") || null,
+        city: String(req.body.city || "") || null,
+        country: String(req.body.country || "China") || "China",
+        socialCreditCode: String(req.body.socialCreditCode || "") || null,
+        website: String(req.body.website || "") || null,
+        category: String(req.body.category || "") || null,
+        amazonShopUrl: String(req.body.amazonShopUrl || "") || null,
+        companyProfile: String(req.body.companyProfile || "") || null,
+        brandJson: JSON.stringify(String(req.body.brand || "").split(",").map((x: string) => x.trim()).filter(Boolean)),
+        address: `${street} ${houseNumber}`.trim() || null,
+        source: String(req.body.source || "Amazon") || "Amazon",
+        priority: String(req.body.priority || "M") || "M",
+        ownerId: user.id,
+      }
+    );
+
+    await saveLeadActivity(id, "lead_created", user.id, "线索池创建线索");
+    res.redirect("/portal/lead-pool");
+  });
+
+  r.post("/lead-pool/import", requirePerm("lead.import"), async (req, res) => {
+    const user = req.user as User;
+    const raw = String(req.body.rawData || "").trim();
+    if (!raw) return res.status(400).send("rawData required");
+    let success = 0;
+
+    for (const line of raw.split(/\r?\n/).map(x => x.trim()).filter(Boolean)) {
+      const [companyName, contactName, street, houseNumber, postalCode, city, country, socialCreditCode, website, brand, category, amazonShopUrl, companyProfile, phone, email] = line.split(",").map(x => (x || "").trim());
+      if (!companyName) continue;
+      const id = `l_${Math.random().toString(36).slice(2, 10)}`;
+      await db.query(
+        `INSERT INTO leads(
+          id,company_name,contact_name,email,phone,street,house_number,postal_code,city,country,social_credit_code,website,category,amazon_shop_url,company_profile,brand_json,address,
+          source,priority,owner_id,workflow_stage,brochure_sent_count,visit_count,created_at,updated_at
+        ) VALUES(
+          :id,:companyName,:contactName,:email,:phone,:street,:houseNumber,:postalCode,:city,:country,:socialCreditCode,:website,:category,:amazonShopUrl,:companyProfile,:brandJson,:address,
+          'Amazon','M',:ownerId,'已导入',0,0,NOW(),NOW()
+        )`,
+        {
+          id,
+          companyName,
+          contactName: contactName || null,
+          email: email || null,
+          phone: phone || null,
+          street: street || null,
+          houseNumber: houseNumber || null,
+          postalCode: postalCode || null,
+          city: city || null,
+          country: country || "China",
+          socialCreditCode: socialCreditCode || null,
+          website: website || null,
+          category: category || null,
+          amazonShopUrl: amazonShopUrl || null,
+          companyProfile: companyProfile || null,
+          brandJson: JSON.stringify(brand ? brand.split("|").map(x => x.trim()).filter(Boolean) : []),
+          address: `${street || ""} ${houseNumber || ""}`.trim() || null,
+          ownerId: user.id,
+        }
+      );
+      success += 1;
+    }
+
+    res.redirect(`/portal/lead-pool?imported=${success}`);
   });
   r.get("/leads", requirePerm("lead.view"), async (req, res) => {
     const user = req.user as User;
@@ -265,10 +376,10 @@ export function portalRoutes(): Router {
     if (!companyName) return res.status(400).send("company_name required");
     await db.query(
       `INSERT INTO leads(
-        id,company_name,contact_name,email,phone,street,house_number,postal_code,city,country,social_credit_code,website,company_profile,brand_json,address,
+        id,company_name,contact_name,email,phone,street,house_number,postal_code,city,country,social_credit_code,website,category,amazon_shop_url,company_profile,brand_json,address,
         source,priority,owner_id,workflow_stage,brochure_sent_count,visit_count,created_at,updated_at
        ) VALUES(
-        :id,:companyName,:contactName,:email,:phone,:street,:houseNumber,:postalCode,:city,:country,:socialCreditCode,:website,:companyProfile,:brandJson,:address,
+        :id,:companyName,:contactName,:email,:phone,:street,:houseNumber,:postalCode,:city,:country,:socialCreditCode,:website,:category,:amazonShopUrl,:companyProfile,:brandJson,:address,
         'Amazon','M',:owner,'已导入',0,0,NOW(),NOW()
        )`,
       {
@@ -284,6 +395,8 @@ export function portalRoutes(): Router {
         country: String(req.body.country || "China") || "China",
         socialCreditCode: String(req.body.social_credit_code || "") || null,
         website: String(req.body.website || "") || null,
+        category: String(req.body.category || "") || null,
+        amazonShopUrl: String(req.body.amazon_shop_url || "") || null,
         companyProfile: String(req.body.company_profile || "") || null,
         brandJson: JSON.stringify(String(req.body.brand || "").split(",").map(s => s.trim()).filter(Boolean)),
         address: `${String(req.body.street || "")} ${String(req.body.house_number || "")}`.trim() || null,
@@ -300,7 +413,7 @@ export function portalRoutes(): Router {
       `UPDATE leads SET
         company_name=:companyName,contact_name=:contactName,email=:email,phone=:phone,
         street=:street,house_number=:houseNumber,postal_code=:postalCode,city=:city,country=:country,
-        social_credit_code=:socialCreditCode,website=:website,company_profile=:companyProfile,brand_json=:brandJson,
+        social_credit_code=:socialCreditCode,website=:website,category=:category,amazon_shop_url=:amazonShopUrl,company_profile=:companyProfile,brand_json=:brandJson,
         address=:address,updated_at=NOW()
        WHERE id=:id`,
       {
@@ -316,6 +429,8 @@ export function portalRoutes(): Router {
         country: String(req.body.country || "China") || "China",
         socialCreditCode: String(req.body.social_credit_code || "") || null,
         website: String(req.body.website || "") || null,
+        category: String(req.body.category || "") || null,
+        amazonShopUrl: String(req.body.amazon_shop_url || "") || null,
         companyProfile: String(req.body.company_profile || "") || null,
         brandJson: JSON.stringify(String(req.body.brand || "").split(",").map(s => s.trim()).filter(Boolean)),
         address: `${String(req.body.street || "")} ${String(req.body.house_number || "")}`.trim() || null,
@@ -411,8 +526,8 @@ export function portalRoutes(): Router {
   });
 
   r.get("/leads/template", async (_req, res) => {
-    const header = "company_name,contact_name,phone,city,country,brand,social_credit_code,website,street,house_number,postal_code,company_profile\n";
-    const sample = "示例公司,张三,13800000000,Shenzhen,China,BrandA,9144XXXX,www.example.com,Nanshan,88,518000,主营跨境电商\n";
+    const header = "company_name,contact_name,street,house_number,postal_code,city,country,social_credit_code,website,brand,category,amazon_shop_url,company_profile,phone,email\n";
+    const sample = "示例公司,张三,Nanshan,88,518000,Shenzhen,China,9144XXXX,www.example.com,BrandA|BrandB,消费电子,https://www.amazon.com/shops/xxx,主营跨境电商,13800000000,tom@example.com\n";
     const data = header + sample;
     const p = path.join(process.cwd(), "tmp-lead-template.csv");
     await fs.writeFile(p, data, "utf8");

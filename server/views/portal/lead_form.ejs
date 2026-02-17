@@ -13,7 +13,9 @@
     <label>social_credit_code<input name="social_credit_code" value="<%= row?.social_credit_code || '' %>"/></label>
     <label>phone<input name="phone" value="<%= row?.phone || '' %>"/></label>
     <label>website<input name="website" value="<%= row?.website || '' %>"/></label>
+    <label>category<input name="category" value="<%= row?.category || '' %>"/></label>
     <label style="grid-column:1 / span 2">brand（逗号分隔）<input name="brand" value="<%= row?.brand_json ? JSON.parse(row.brand_json).join(',') : '' %>"/></label>
+    <label style="grid-column:1 / span 2">amazon_shop_url<input name="amazon_shop_url" value="<%= row?.amazon_shop_url || '' %>"/></label>
     <label style="grid-column:1 / span 2">company_profile<textarea name="company_profile" rows="4"><%= row?.company_profile || '' %></textarea></label>
     <div style="grid-column:1 / span 2"><button class="btn" type="submit">保存</button></div>
   </form>

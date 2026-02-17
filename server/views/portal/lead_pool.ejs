@@ -4,23 +4,34 @@
   <div class="card">
     <div style="font-weight:800;margin-bottom:8px">导入亚马逊卖家线索（CSV 文本）</div>
     <form method="post" action="/portal/lead-pool/import">
-      <textarea name="rawData" rows="6" style="width:100%" placeholder="每行一条：公司,联系人,邮箱,电话,国家,地址"></textarea>
-      <div class="text-muted" style="margin:6px 0">示例：ACME LLC,Tom,tom@acme.com,1380000,US,Seattle</div>
+      <textarea name="rawData" rows="8" style="width:100%" placeholder="每行一条：公司,联系人,街道,门牌,邮编,城市,国家,社会统一号,网站,品牌(用|分隔),品类,亚马逊shop地址,公司简介,电话,邮箱"></textarea>
+      <div class="text-muted" style="margin:6px 0">示例：ACME LLC,Tom,Nanshan,88,518000,Shenzhen,China,9144XXXX,https://acme.com,BrandA|BrandB,消费电子,https://www.amazon.com/shops/acme,主营跨境电商,1380000,tom@acme.com</div>
       <button class="btn" type="submit">导入线索</button>
     </form>
   </div>
 
   <div class="card">
-    <div style="font-weight:800;margin-bottom:8px">新建线索</div>
+    <div style="font-weight:800;margin-bottom:8px">新建线索（12字段）</div>
     <form method="post" action="/portal/lead-pool/create" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-      <input name="companyName" placeholder="公司名*" required />
-      <input name="contactName" placeholder="联系人" />
-      <input name="email" placeholder="邮箱" />
+      <input name="companyName" placeholder="1 公司*" required />
+      <input name="contactName" placeholder="2 联系人" />
+      <input name="street" placeholder="3 街道" />
+      <input name="houseNumber" placeholder="4 门牌" />
+      <input name="postalCode" placeholder="5 邮编" />
+      <input name="city" placeholder="6 城市" />
+      <input name="country" value="China" placeholder="国家（默认China）" />
+      <input name="socialCreditCode" placeholder="7 社会统一号" />
+      <input name="website" placeholder="8 公司网站" />
+      <input name="brand" placeholder="9 品牌（可多个，逗号分隔）" />
+      <input name="category" placeholder="10 品类" />
+      <input name="amazonShopUrl" placeholder="11 亚马逊shop地址" />
+      <textarea name="companyProfile" rows="3" style="grid-column:span 2" placeholder="12 公司简介"></textarea>
+
       <input name="phone" placeholder="电话" />
-      <input name="country" placeholder="国家" />
+      <input name="email" placeholder="邮箱" />
       <input name="source" value="Amazon" placeholder="来源" />
       <input name="priority" value="M" placeholder="优先级" />
-      <input name="address" placeholder="地址" style="grid-column:span 2" />
+
       <button class="btn" type="submit" style="grid-column:span 2">保存线索</button>
     </form>
   </div>
@@ -28,7 +39,7 @@
 
 <div class="card" style="margin-bottom:12px">
   <form method="get" action="/portal/lead-pool" style="display:flex;gap:8px;flex-wrap:wrap">
-    <input name="q" value="<%= q %>" placeholder="搜索公司/联系人/邮箱/电话" style="min-width:260px" />
+    <input name="q" value="<%= q %>" placeholder="搜索公司/联系人/电话/城市" style="min-width:260px" />
     <input name="country" value="<%= country %>" placeholder="国家" />
     <select name="source">
       <option value="">全部来源</option>
@@ -67,9 +78,7 @@
           <td><span class="pill"><%= r.stage %></span></td>
         </tr>
       <% }) %>
-      <% if (!rows.length) { %>
-        <tr><td colspan="7" class="text-muted">暂无线索</td></tr>
-      <% } %>
+      <% if (!rows.length) { %><tr><td colspan="7" class="text-muted">暂无线索</td></tr><% } %>
       </tbody>
     </table>
 

@@ -20,6 +20,8 @@ CREATE TABLE IF NOT EXISTS leads (
   country VARCHAR(100) NULL DEFAULT 'China',
   social_credit_code VARCHAR(64) NULL,
   website VARCHAR(255) NULL,
+  category VARCHAR(120) NULL,
+  amazon_shop_url VARCHAR(500) NULL,
   company_profile TEXT NULL,
   brand_json JSON NULL,
   address VARCHAR(500) NULL,
