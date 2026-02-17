@@ -11,8 +11,8 @@ import { fileURLToPath } from "url";
 // import { appRouter } from "../routers";
 // import { createContext } from "./context";
 
-import { publicRoutes } from "../routes/public";
-import { portalRoutes } from "../routes/portal";
+import * as publicRoutesModule from "../routes/public";
+import * as portalRoutesModule from "../routes/portal";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -27,6 +27,16 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
     if (await isPortAvailable(port)) return port;
   }
   throw new Error(`No available port found starting from ${startPort}`);
+}
+
+
+
+function resolveRouteFactory(mod: any, name: string) {
+  const fn = mod?.[name] || mod?.default;
+  if (typeof fn !== "function") {
+    throw new Error(`Route module missing export '${name}' (or default function)`);
+  }
+  return fn;
 }
 
 async function startServer() {
@@ -54,6 +64,8 @@ async function startServer() {
   // );
 
   // EJS routes
+  const publicRoutes = resolveRouteFactory(publicRoutesModule, "publicRoutes");
+  const portalRoutes = resolveRouteFactory(portalRoutesModule, "portalRoutes");
   app.use("/", publicRoutes());
   app.use("/portal", portalRoutes());
 

@@ -1,0 +1,63 @@
+<%- include("../partials/portal_header", { title, user }) %>
+
+<div class="card" style="margin-bottom:12px">
+  <div style="font-weight:800;margin-bottom:8px">创建宣传单批次</div>
+  <form method="post" action="/portal/campaigns" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+    <input name="name" placeholder="批次名称，例如：2026Q1-北美" required />
+    <input name="templateName" placeholder="宣传单模板" value="标准宣传单" />
+    <textarea name="note" rows="3" style="grid-column:span 2" placeholder="备注"></textarea>
+    <input type="hidden" name="ids" value="<%= selectedIds.join(',') %>" />
+
+    <div class="text-muted" style="grid-column:span 2">已选客户：<%= selectedLeads.length %> 个</div>
+    <button class="btn" type="submit" style="grid-column:span 2">创建批次</button>
+  </form>
+</div>
+
+<div class="card" style="margin-bottom:12px">
+  <div style="font-weight:800;margin-bottom:10px">本次选中客户</div>
+  <table>
+    <thead><tr><th>公司</th><th>联系人</th><th>电话</th><th>国家</th><th>阶段</th></tr></thead>
+    <tbody>
+      <% selectedLeads.forEach(l=>{ %>
+        <tr>
+          <td><%= l.companyName %></td>
+          <td><%= l.contactName || '-' %></td>
+          <td><%= l.phone || '-' %></td>
+          <td><%= l.country || '-' %></td>
+          <td><span class="pill"><%= l.stage %></span></td>
+        </tr>
+      <% }) %>
+      <% if(!selectedLeads.length){ %><tr><td colspan="5" class="text-muted">请先从线索池勾选客户</td></tr><% } %>
+    </tbody>
+  </table>
+</div>
+
+<div class="card">
+  <div style="font-weight:800;margin-bottom:10px">历史批次（可推单到圆通）</div>
+  <table>
+    <thead><tr><th>批次</th><th>模板</th><th>状态</th><th>客户数</th><th>创建时间</th><th>操作</th></tr></thead>
+    <tbody>
+      <% batches.forEach(b=>{ %>
+        <tr>
+          <td><%= b.name %></td>
+          <td><%= b.templateName || '-' %></td>
+          <td><span class="pill"><%= b.status %></span></td>
+          <td><%= b.leadCount %></td>
+          <td><%= new Date(b.createdAt).toLocaleString() %></td>
+          <td>
+            <% if (b.status !== 'Pushed') { %>
+              <form method="post" action="/portal/campaigns/<%= b.id %>/push-yto" style="display:inline">
+                <button class="btn" type="submit">推单给圆通</button>
+              </form>
+            <% } else { %>
+              <span class="text-muted">已推送</span>
+            <% } %>
+          </td>
+        </tr>
+      <% }) %>
+      <% if(!batches.length){ %><tr><td colspan="6" class="text-muted">暂无批次</td></tr><% } %>
+    </tbody>
+  </table>
+</div>
+
+<%- include("../partials/portal_footer") %>

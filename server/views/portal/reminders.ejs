@@ -1,0 +1,20 @@
+<%- include('../partials/portal_header') %>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+  <div class="card">
+    <h3>今日要拜访</h3>
+    <% todayRows.forEach(r=>{ %>
+      <div style="padding:8px 0;border-bottom:1px solid #eef2f7">
+        <a href="/portal/leads/<%= r.id %>"><%= r.companyName %></a> - <%= r.contactName || '-' %>
+      </div>
+    <% }) %>
+  </div>
+  <div class="card">
+    <h3>超期未拜访</h3>
+    <% overdueRows.forEach(r=>{ %>
+      <div style="padding:8px 0;border-bottom:1px solid #eef2f7">
+        <a href="/portal/leads/<%= r.id %>"><%= r.companyName %></a> - <%= r.contactName || '-' %>
+      </div>
+    <% }) %>
+  </div>
+</div>
+<%- include('../partials/portal_footer') %>

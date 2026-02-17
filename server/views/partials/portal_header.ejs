@@ -6,41 +6,64 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
 
   <style>
-    /* ===== 全局 ===== */
+    :root {
+      --bg: #f3f6fb;
+      --panel: #ffffff;
+      --text: #172033;
+      --muted: #6b7280;
+      --primary: #3b82f6;
+      --primary-soft: #e8f1ff;
+      --border: #e5eaf3;
+      --shadow: 0 8px 26px rgba(30, 41, 59, 0.06);
+    }
+
+    * { box-sizing: border-box; }
+
     body {
-      font-family: system-ui, Segoe UI, Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+      font-family: Inter, system-ui, Segoe UI, Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
       margin: 0;
-      background: #f5f7fa;
-      color: #111;
+      background: linear-gradient(180deg, #f8faff 0%, var(--bg) 100%);
+      color: var(--text);
     }
 
-    a {
-      color: #1d4ed8;
-      text-decoration: none;
-    }
+    a { color: #2563eb; text-decoration: none; }
 
-    /* ===== 顶部栏 ===== */
     .top {
+      position: sticky;
+      top: 0;
+      z-index: 20;
       display: flex;
       align-items: center;
       gap: 12px;
-      padding: 12px 16px;
-      background: #ffffff;
-      border-bottom: 1px solid #e5e7eb;
+      padding: 14px 18px;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(6px);
+      border-bottom: 1px solid var(--border);
     }
 
-    /* ===== 主体布局 ===== */
+    .brand {
+      font-weight: 800;
+      letter-spacing: .2px;
+    }
+
     .grid {
       display: grid;
-      grid-template-columns: 240px 1fr;
-      min-height: calc(100vh - 56px);
+      grid-template-columns: 250px 1fr;
+      min-height: calc(100vh - 60px);
     }
 
-    /* ===== 左侧菜单 ===== */
     .side {
-      background: #ffffff;
-      border-right: 1px solid #e5e7eb;
-      padding: 14px;
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      padding: 16px;
+    }
+
+    .menu-title {
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+      margin: 10px 8px;
     }
 
     .item {
@@ -48,112 +71,101 @@
       padding: 10px 12px;
       border-radius: 10px;
       margin-bottom: 6px;
-      color: #111;
+      color: var(--text);
+      transition: .2s ease;
     }
 
-    .item:hover {
-      background: #f1f5f9;
-    }
+    .item:hover { background: #f5f9ff; transform: translateX(2px); }
+    .item.active { background: var(--primary-soft); color: #1d4ed8; font-weight: 700; }
 
-    /* 可选：当前页高亮（你后面可加 active class） */
-    .item.active {
-      background: #e8f0ff;
-      color: #1d4ed8;
-      font-weight: 600;
-    }
+    .main { padding: 20px; }
 
-    /* ===== 主内容 ===== */
-    .main {
-      padding: 18px;
-    }
-
-    /* ===== 卡片 ===== */
     .card {
-      background: #ffffff;
-      border: 1px solid #e5e7eb;
+      background: var(--panel);
+      border: 1px solid var(--border);
       border-radius: 14px;
       padding: 16px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+      box-shadow: var(--shadow);
     }
 
-    /* ===== 表格 ===== */
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      background: #ffffff;
-    }
+    table { width: 100%; border-collapse: collapse; background: #fff; }
+    th { background: #f8fafc; color: #475569; font-weight: 700; }
+    th, td { padding: 10px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
 
-    th {
-      background: #f9fafb;
-      color: #374151;
-      font-weight: 600;
-    }
-
-    th, td {
-      padding: 10px;
-      border-bottom: 1px solid #e5e7eb;
-      text-align: left;
-      vertical-align: top;
-    }
-
-    /* ===== 按钮 ===== */
     .btn {
-      background: #2563eb;
-      color: #ffffff;
+      background: var(--primary);
+      color: #fff;
       padding: 8px 14px;
       border: none;
       border-radius: 10px;
       cursor: pointer;
+      font-weight: 600;
+    }
+    .btn:hover { background: #2563eb; }
+
+    .btn-ghost {
+      background: #fff;
+      color: #2563eb;
+      border: 1px solid #cde0ff;
     }
 
-    .btn:hover {
-      background: #1d4ed8;
-    }
-
-    /* ===== 标签 ===== */
     .pill {
-      display: inline-block;
-      padding: 4px 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 10px;
       border-radius: 999px;
-      background: #eef2ff;
-      color: #3730a3;
-      border: 1px solid #e0e7ff;
+      background: #eef4ff;
+      color: #1e3a8a;
+      border: 1px solid #dbe8ff;
       font-size: 12px;
+      font-weight: 600;
     }
 
-    /* ===== 表单 ===== */
-    input,
-    select,
-    textarea {
-      border: 1px solid #d1d5db;
-      background: #ffffff;
-      color: #111;
-      border-radius: 8px;
-      padding: 6px 8px;
+    input, select, textarea {
+      border: 1px solid #d1d9e6;
+      background: #fff;
+      color: var(--text);
+      border-radius: 10px;
+      padding: 8px 10px;
     }
 
-    input::placeholder,
-    textarea::placeholder {
-      color: #9ca3af;
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: #93c5fd;
+      box-shadow: 0 0 0 3px #dbeafe;
     }
+
+    .text-muted { color: var(--muted); font-size: 13px; }
   </style>
 </head>
 
 <body>
   <div class="top">
-    <div style="font-weight:800">售后联盟 · 后台</div>
-    <div style="margin-left:auto">
+    <div class="brand">售后联盟 · 市场推广系统</div>
+    <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
       <span class="pill"><%= user?.name || "User" %></span>
+      <span class="pill"><%= user?.role || "Role" %></span>
     </div>
   </div>
 
   <div class="grid">
     <div class="side">
+      <div class="menu-title">业务流程</div>
       <a class="item" href="/portal">仪表盘</a>
+      <a class="item" href="/portal/leads">线索池</a>
+      <a class="item" href="/portal/campaigns">发宣传单</a>
       <a class="item" href="/portal/workflow">工作流</a>
       <a class="item" href="/portal/leads">线索管理</a>
-	  <a class="item" href="/portal/shipments">订单管理</a>
+      <a class="item" href="/portal/shipments">订单管理</a>
+      <a class="item" href="/portal/followups">跟进汇总</a>
+      <a class="item" href="/portal/reminders">提醒待办</a>
+      <a class="item" href="/portal/logs">活动日志</a>
+      <a class="item" href="/portal/analytics">分析页</a>
 
+      <div class="menu-title">系统设置</div>
+      <a class="item" href="/portal/users">用户页</a>
+      <a class="item" href="/portal/settings/yuantong">圆通 API 设置</a>
     </div>
 
     <div class="main">

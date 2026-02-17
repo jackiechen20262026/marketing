@@ -1,0 +1,47 @@
+<%- include('../partials/portal_header') %>
+
+<div class="card" style="margin-bottom:12px">
+  <h2><%= lead.company_name %></h2>
+  <div class="text-muted"><%= lead.contact_name || '-' %> · <%= lead.phone || '-' %> · <%= lead.city || '-' %>/<%= lead.country || '-' %></div>
+  <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+    <span class="pill">宣传册发送: <%= lead.brochure_sent_count || 0 %></span>
+    <span class="pill">拜访次数: <%= lead.visit_count || 0 %></span>
+    <span class="pill">频率限制: <%= limitStatus === 'over' ? '超限' : '正常' %></span>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start">
+  <div class="card">
+    <h3>活动记录</h3>
+    <form method="post" action="/portal/leads/<%= lead.id %>/visit" style="display:flex;gap:8px;margin-bottom:8px">
+      <input name="note" placeholder="拜访备注" style="flex:1" />
+      <button class="btn" type="submit">记录拜访</button>
+    </form>
+    <% logs.forEach(l => { %>
+      <div style="padding:8px 0;border-bottom:1px solid #eef2f7">
+        <b><%= l.activity_type %></b> - <%= l.note || '-' %>
+        <div class="text-muted"><%= l.operator || '-' %> · <%= new Date(l.created_at).toLocaleString() %></div>
+      </div>
+    <% }) %>
+  </div>
+
+  <div class="card">
+    <h3>文件/图片 + 提醒</h3>
+    <form method="post" action="/portal/leads/<%= lead.id %>/upload" style="display:grid;gap:8px;margin-bottom:10px">
+      <input name="file_name" placeholder="文件名" />
+      <input name="file_url" placeholder="图片URL（先用URL方式上传）" required />
+      <button class="btn btn-ghost" type="submit">上传图片</button>
+    </form>
+
+    <form method="post" action="/portal/leads/<%= lead.id %>/reminder" style="display:flex;gap:8px;margin-bottom:10px">
+      <input name="next_visit_reminder" type="datetime-local" />
+      <button class="btn" type="submit">设置提醒</button>
+    </form>
+
+    <% files.forEach(f => { %>
+      <div style="margin:6px 0"><a href="<%= f.file_url %>" target="_blank"><%= f.file_name %></a></div>
+    <% }) %>
+  </div>
+</div>
+
+<%- include('../partials/portal_footer') %>

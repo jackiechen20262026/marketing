@@ -1,0 +1,24 @@
+<%- include('../partials/portal_header') %>
+<div class="card" style="margin-bottom:12px">
+  <form method="get" action="/portal/logs" style="display:flex;gap:8px">
+    <input name="q" value="<%= q %>" placeholder="leadId 或 activity type" />
+    <button class="btn" type="submit">筛选</button>
+  </form>
+</div>
+<div class="card">
+  <table>
+    <thead><tr><th>时间</th><th>Lead</th><th>类型</th><th>备注</th><th>操作人</th></tr></thead>
+    <tbody>
+      <% rows.forEach(r=>{ %>
+        <tr>
+          <td><%= new Date(r.createdAt).toLocaleString() %></td>
+          <td><a href="/portal/leads/<%= r.leadId %>"><%= r.leadId %></a></td>
+          <td><%= r.type %></td>
+          <td><%= r.note || '-' %></td>
+          <td><%= r.operator || '-' %></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>
+<%- include('../partials/portal_footer') %>
