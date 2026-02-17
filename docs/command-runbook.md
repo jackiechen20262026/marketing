@@ -293,3 +293,28 @@ LIMIT 50;
 - `?as=admin`
 - `?as=supervisor`
 - `?as=employee`
+
+## 15) 启动报错 `does not provide an export named 'portalRoutes'` 排查
+如果出现该报错，先检查是否有旧产物/错误文件被命中：
+
+```bash
+npm run diag:routes
+```
+
+然后清理构建产物并按统一方式启动：
+
+```bash
+npm run clean
+npm run dev
+```
+
+生产打包方式：
+
+```bash
+npm run build
+npm run start:dist
+```
+
+说明：
+- 默认启动统一使用 `node server.js`（`npm run dev` / `npm run start`），避免 `dist` 与源码不一致引发导入冲突。
+- 路由导入已固定为 `.ts` 路径，降低误命中旧 `.js` 文件的概率。

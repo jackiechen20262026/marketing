@@ -11,8 +11,8 @@ import { fileURLToPath } from "url";
 // import { appRouter } from "../routers";
 // import { createContext } from "./context";
 
-import * as publicRoutesModule from "../routes/public";
-import * as portalRoutesModule from "../routes/portal";
+import * as publicRoutesModule from "../routes/public.ts";
+import * as portalRoutesModule from "../routes/portal.ts";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
