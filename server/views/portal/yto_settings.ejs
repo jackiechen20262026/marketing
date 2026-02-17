@@ -11,13 +11,13 @@
 <div style="display:grid;grid-template-columns:1.2fr .8fr;gap:12px;align-items:start">
   <div class="card">
     <form method="post" action="/portal/settings/yuantong" style="display:grid;gap:10px">
-      <label>Base URL<br/><input name="baseUrl" value="<%= config?.baseUrl || '' %>" placeholder="https://openapi.yto.net.cn" required style="width:100%"/></label>
-      <label>App Key<br/><input name="appKey" value="<%= config?.appKey || '' %>" placeholder="输入 app_key" required style="width:100%"/></label>
-      <label>App Secret（留空表示不修改）<br/><input name="appSecret" type="password" placeholder="当前：<%= config?.appSecretMask || '' %>" style="width:100%"/></label>
-      <label>Customer Code<br/><input name="customerCode" value="<%= config?.customerCode || '' %>" placeholder="可选" style="width:100%"/></label>
-      <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" name="enabled" value="1" <%= Number(config?.enabled || 0) ? 'checked' : '' %> /> 启用圆通推送</label>
+      <label>Base URL<br/><input name="baseUrl"  value="<%= config?.baseUrl || '' %>" placeholder="https://openapi.yto.net.cn" required style="width:100%" <%= canEdit ? "" : "disabled" %>/></label>
+      <label>App Key<br/><input name="appKey"  value="<%= config?.appKey || '' %>" placeholder="输入 app_key" required style="width:100%" <%= canEdit ? "" : "disabled" %>/></label>
+      <label>App Secret（留空表示不修改）<br/><input name="appSecret"  type="password" placeholder="当前：<%= config?.appSecretMask || '' %>" style="width:100%" <%= canEdit ? "" : "disabled" %>/></label>
+      <label>Customer Code<br/><input name="customerCode"  value="<%= config?.customerCode || '' %>" placeholder="可选" style="width:100%" <%= canEdit ? "" : "disabled" %>/></label>
+      <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" name="enabled" value="1" <%= Number(config?.enabled || 0) ? 'checked' : '' %> <%= canEdit ? "" : "disabled" %> /> 启用圆通推送</label>
       <div style="display:flex;gap:8px">
-        <button class="btn" type="submit">保存配置</button>
+        <button class="btn" type="submit" <%= canEdit ? "" : "disabled" %>>保存配置</button>
       </div>
     </form>
     <form method="post" action="/portal/settings/yuantong/test" style="margin-top:8px">

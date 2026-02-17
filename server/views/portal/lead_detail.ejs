@@ -1,62 +1,47 @@
-<%- include("../partials/portal_header", { title, user }) %>
+<%- include('../partials/portal_header') %>
 
 <div class="card" style="margin-bottom:12px">
-  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-    <div style="font-size:20px;font-weight:900"><%= lead.companyName %></div>
-    <span class="pill"><%= lead.stage %></span>
-    <a class="pill" href="/portal/leads">返回线索列表</a>
-  </div>
-  <div class="text-muted" style="margin-top:8px">
-    联系人：<%= lead.contactName || '-' %> ｜ 邮箱：<%= lead.email || '-' %> ｜ 电话：<%= lead.phone || '-' %>
+  <h2><%= lead.company_name %></h2>
+  <div class="text-muted"><%= lead.contact_name || '-' %> · <%= lead.phone || '-' %> · <%= lead.city || '-' %>/<%= lead.country || '-' %></div>
+  <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+    <span class="pill">宣传册发送: <%= lead.brochure_sent_count || 0 %></span>
+    <span class="pill">拜访次数: <%= lead.visit_count || 0 %></span>
+    <span class="pill">频率限制: <%= limitStatus === 'over' ? '超限' : '正常' %></span>
   </div>
 </div>
 
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start">
   <div class="card">
-    <div style="font-weight:800;margin-bottom:8px">新增跟进</div>
-    <form method="post" action="/portal/leads/<%= lead.id %>/followups">
-      <div style="display:flex;gap:8px;margin-bottom:8px">
-        <select name="channel">
-          <option>Phone</option>
-          <option>Email</option>
-          <option>WhatsApp</option>
-          <option>Other</option>
-        </select>
-        <input name="result" placeholder="结果：意向中/成交/关闭" style="flex:1"/>
+    <h3>活动记录</h3>
+    <form method="post" action="/portal/leads/<%= lead.id %>/visit" style="display:flex;gap:8px;margin-bottom:8px">
+      <input name="note" placeholder="拜访备注" style="flex:1" />
+      <button class="btn" type="submit">记录拜访</button>
+    </form>
+    <% logs.forEach(l => { %>
+      <div style="padding:8px 0;border-bottom:1px solid #eef2f7">
+        <b><%= l.activity_type %></b> - <%= l.note || '-' %>
+        <div class="text-muted"><%= l.operator || '-' %> · <%= new Date(l.created_at).toLocaleString() %></div>
       </div>
-      <textarea name="content" rows="4" style="width:100%" placeholder="跟进内容" required></textarea>
-      <button class="btn" type="submit" style="margin-top:8px">保存跟进</button>
-    </form>
+    <% }) %>
   </div>
 
   <div class="card">
-    <div style="font-weight:800;margin-bottom:8px">快捷推进阶段</div>
-    <form method="post" action="/portal/workflow/<%= lead.id %>/move" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <select name="toStage">
-        <% stages.forEach(s=>{ %>
-          <option value="<%= s %>"><%= s %></option>
-        <% }) %>
-      </select>
-      <input name="note" placeholder="备注" />
-      <button class="btn" type="submit">推进</button>
+    <h3>文件/图片 + 提醒</h3>
+    <form method="post" action="/portal/leads/<%= lead.id %>/upload" style="display:grid;gap:8px;margin-bottom:10px">
+      <input name="file_name" placeholder="文件名" />
+      <input name="file_url" placeholder="图片URL（先用URL方式上传）" required />
+      <button class="btn btn-ghost" type="submit">上传图片</button>
     </form>
 
-    <% if (shipment) { %>
-      <div style="margin-top:12px">运单：<a href="/portal/shipments/<%= shipment.id %>"><%= shipment.waybillNo || shipment.id %></a></div>
-    <% } %>
+    <form method="post" action="/portal/leads/<%= lead.id %>/reminder" style="display:flex;gap:8px;margin-bottom:10px">
+      <input name="next_visit_reminder" type="datetime-local" />
+      <button class="btn" type="submit">设置提醒</button>
+    </form>
+
+    <% files.forEach(f => { %>
+      <div style="margin:6px 0"><a href="<%= f.file_url %>" target="_blank"><%= f.file_name %></a></div>
+    <% }) %>
   </div>
 </div>
 
-<div class="card" style="margin-top:12px">
-  <div style="font-weight:800;margin-bottom:8px">客户时间线</div>
-  <% timeline.forEach(t=>{ %>
-    <div style="padding:10px 0;border-bottom:1px solid #e5e7eb">
-      <div style="display:flex;gap:8px"><span class="pill"><%= t.type %></span><strong><%= t.title %></strong><span class="text-muted" style="margin-left:auto"><%= new Date(t.at).toLocaleString() %></span></div>
-      <% if (t.meta) { %><div class="text-muted" style="margin-top:4px"><%= t.meta %></div><% } %>
-      <% if (t.note) { %><div style="margin-top:4px"><%= t.note %></div><% } %>
-    </div>
-  <% }) %>
-  <% if(!timeline.length){ %><div class="text-muted">暂无记录</div><% } %>
-</div>
-
-<%- include("../partials/portal_footer") %>
+<%- include('../partials/portal_footer') %>

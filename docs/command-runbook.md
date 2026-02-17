@@ -274,3 +274,22 @@ FROM courier_api_logs
 ORDER BY id DESC
 LIMIT 50;
 ```
+
+## 13) 新版功能清单（角色/线索/批次/圆通）
+- 用户：`/portal/users`、`/portal/users/new`、`/portal/users/:id/edit`
+- 线索：`/portal/leads`、`/portal/leads/new`、`/portal/leads/:id/edit`、`/portal/leads/:id`、`/portal/leads/recommendations`、`/portal/leads/import`
+- 模板下载：`/portal/leads/template`
+- 批次：`/portal/campaigns`、`/portal/campaigns/new`、`/portal/campaigns/:batchId`
+- 圆通：`/portal/settings/yuantong`（supervisor 只读，admin 可编辑）
+- 提醒：`/portal/reminders`
+- 日志：`/portal/logs`
+
+## 14) 角色与权限
+- `admin`：全权限（系统设置/员工/导入导出/密钥编辑）
+- `supervisor`：管理权限（可看团队与统计；圆通设置只读）
+- `employee`：仅本人线索执行权限（线索操作/创建批次）
+
+调试角色方式：
+- `?as=admin`
+- `?as=supervisor`
+- `?as=employee`
