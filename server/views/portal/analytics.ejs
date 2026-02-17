@@ -1,0 +1,33 @@
+<%- include("../partials/portal_header", { title, user }) %>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+  <div class="card">
+    <div style="font-weight:800;margin-bottom:8px">线索漏斗</div>
+    <% stages.forEach(stage=>{ const found = funnelRows.find(x=>x.stage===stage); %>
+      <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #e5e7eb">
+        <span><%= stage %></span><strong><%= found ? found.cnt : 0 %></strong>
+      </div>
+    <% }) %>
+  </div>
+
+  <div class="card">
+    <div style="font-weight:800;margin-bottom:8px">Top 国家线索数</div>
+    <% countryRows.forEach(c=>{ %>
+      <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #e5e7eb">
+        <span><%= c.country %></span><strong><%= c.cnt %></strong>
+      </div>
+    <% }) %>
+  </div>
+
+  <div class="card" style="grid-column:span 2">
+    <div style="font-weight:800;margin-bottom:8px">物流状态分布</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <% shipmentRows.forEach(s=>{ %>
+        <div class="pill"><%= s.status || '-' %>：<%= s.cnt %></div>
+      <% }) %>
+      <% if(!shipmentRows.length){ %><span class="text-muted">暂无物流数据</span><% } %>
+    </div>
+  </div>
+</div>
+
+<%- include("../partials/portal_footer") %>

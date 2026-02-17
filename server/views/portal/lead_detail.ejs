@@ -1,0 +1,62 @@
+<%- include("../partials/portal_header", { title, user }) %>
+
+<div class="card" style="margin-bottom:12px">
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <div style="font-size:20px;font-weight:900"><%= lead.companyName %></div>
+    <span class="pill"><%= lead.stage %></span>
+    <a class="pill" href="/portal/leads">返回线索列表</a>
+  </div>
+  <div class="text-muted" style="margin-top:8px">
+    联系人：<%= lead.contactName || '-' %> ｜ 邮箱：<%= lead.email || '-' %> ｜ 电话：<%= lead.phone || '-' %>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+  <div class="card">
+    <div style="font-weight:800;margin-bottom:8px">新增跟进</div>
+    <form method="post" action="/portal/leads/<%= lead.id %>/followups">
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <select name="channel">
+          <option>Phone</option>
+          <option>Email</option>
+          <option>WhatsApp</option>
+          <option>Other</option>
+        </select>
+        <input name="result" placeholder="结果：意向中/成交/关闭" style="flex:1"/>
+      </div>
+      <textarea name="content" rows="4" style="width:100%" placeholder="跟进内容" required></textarea>
+      <button class="btn" type="submit" style="margin-top:8px">保存跟进</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <div style="font-weight:800;margin-bottom:8px">快捷推进阶段</div>
+    <form method="post" action="/portal/workflow/<%= lead.id %>/move" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <select name="toStage">
+        <% stages.forEach(s=>{ %>
+          <option value="<%= s %>"><%= s %></option>
+        <% }) %>
+      </select>
+      <input name="note" placeholder="备注" />
+      <button class="btn" type="submit">推进</button>
+    </form>
+
+    <% if (shipment) { %>
+      <div style="margin-top:12px">运单：<a href="/portal/shipments/<%= shipment.id %>"><%= shipment.waybillNo || shipment.id %></a></div>
+    <% } %>
+  </div>
+</div>
+
+<div class="card" style="margin-top:12px">
+  <div style="font-weight:800;margin-bottom:8px">客户时间线</div>
+  <% timeline.forEach(t=>{ %>
+    <div style="padding:10px 0;border-bottom:1px solid #e5e7eb">
+      <div style="display:flex;gap:8px"><span class="pill"><%= t.type %></span><strong><%= t.title %></strong><span class="text-muted" style="margin-left:auto"><%= new Date(t.at).toLocaleString() %></span></div>
+      <% if (t.meta) { %><div class="text-muted" style="margin-top:4px"><%= t.meta %></div><% } %>
+      <% if (t.note) { %><div style="margin-top:4px"><%= t.note %></div><% } %>
+    </div>
+  <% }) %>
+  <% if(!timeline.length){ %><div class="text-muted">暂无记录</div><% } %>
+</div>
+
+<%- include("../partials/portal_footer") %>
