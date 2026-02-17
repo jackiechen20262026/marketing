@@ -21,6 +21,12 @@
           <button class="btn" type="submit">重推面单</button>
         </form>
       <% } %>
+      <form method="post" action="/portal/shipments/<%= shipment.id %>/mark-returned">
+        <button class="btn btn-ghost" type="submit">标记退件并推圆通</button>
+      </form>
+      <form method="post" action="/portal/returns/<%= shipment.id %>/retry-yto">
+        <button class="btn btn-ghost" type="submit">重试退单推送</button>
+      </form>
       <a class="pill" href="/portal/shipments">返回列表</a>
     </div>
   </div>

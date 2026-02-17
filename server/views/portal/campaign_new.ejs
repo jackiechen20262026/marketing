@@ -1,0 +1,14 @@
+<%- include('../partials/portal_header') %>
+<div class="card">
+  <h2>创建批次</h2>
+  <form method="post" action="/portal/campaigns">
+    <input name="name" placeholder="批次名称" required />
+    <input name="template_name" placeholder="模板名称" required />
+    <input name="note" placeholder="备注" />
+    <div style="margin:8px 0">
+      <% ids.forEach(id=>{ %><input type="hidden" name="ids" value="<%= id %>" /><span class="pill"><%= id %></span><% }) %>
+    </div>
+    <button class="btn" type="submit">创建</button>
+  </form>
+</div>
+<%- include('../partials/portal_footer') %>

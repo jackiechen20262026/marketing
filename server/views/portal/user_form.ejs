@@ -1,0 +1,19 @@
+<%- include('../partials/portal_header') %>
+<div class="card">
+  <h2><%= row ? '编辑员工' : '新增员工' %></h2>
+  <form method="post" action="<%= row ? ('/portal/users/' + row.id) : '/portal/users' %>" style="display:grid;gap:10px;max-width:520px">
+    <input name="username" value="<%= row?.username || '' %>" placeholder="username" required />
+    <input name="password" type="password" placeholder="password（编辑可留空）" <%= row ? '' : 'required' %> />
+    <select name="role">
+      <option value="Salesperson" <%= row?.role==='Salesperson'?'selected':'' %>>employee</option>
+      <option value="Supervisor" <%= row?.role==='Supervisor'?'selected':'' %>>supervisor</option>
+      <option value="Admin" <%= row?.role==='Admin'?'selected':'' %>>admin</option>
+    </select>
+    <select name="status">
+      <option value="active" <%= row?.status==='active'?'selected':'' %>>active</option>
+      <option value="inactive" <%= row?.status==='inactive'?'selected':'' %>>inactive</option>
+    </select>
+    <button class="btn" type="submit">保存</button>
+  </form>
+</div>
+<%- include('../partials/portal_footer') %>

@@ -1,0 +1,22 @@
+<%- include('../partials/portal_header') %>
+
+<div class="card">
+  <h2><%= row ? t('lead.edit','编辑线索') : t('lead.new','新增线索') %></h2>
+  <form method="post" action="<%= row ? ('/portal/leads/' + row.id) : '/portal/leads' %>" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px">
+    <label>company_name*<input name="company_name" value="<%= row?.company_name || '' %>" required/></label>
+    <label>contact_name<input name="contact_name" value="<%= row?.contact_name || '' %>"/></label>
+    <label>street<input name="street" value="<%= row?.street || '' %>"/></label>
+    <label>house_number<input name="house_number" value="<%= row?.house_number || '' %>"/></label>
+    <label>postal_code<input name="postal_code" value="<%= row?.postal_code || '' %>"/></label>
+    <label>city<input name="city" value="<%= row?.city || '' %>"/></label>
+    <label>country<input name="country" value="<%= row?.country || 'China' %>"/></label>
+    <label>social_credit_code<input name="social_credit_code" value="<%= row?.social_credit_code || '' %>"/></label>
+    <label>phone<input name="phone" value="<%= row?.phone || '' %>"/></label>
+    <label>website<input name="website" value="<%= row?.website || '' %>"/></label>
+    <label style="grid-column:1 / span 2">brand（逗号分隔）<input name="brand" value="<%= row?.brand_json ? JSON.parse(row.brand_json).join(',') : '' %>"/></label>
+    <label style="grid-column:1 / span 2">company_profile<textarea name="company_profile" rows="4"><%= row?.company_profile || '' %></textarea></label>
+    <div style="grid-column:1 / span 2"><button class="btn" type="submit">保存</button></div>
+  </form>
+</div>
+
+<%- include('../partials/portal_footer') %>

@@ -1,0 +1,27 @@
+<%- include('../partials/portal_header') %>
+
+<div class="card" style="margin-bottom:12px">
+  <h2><%= t('user.list','员工列表') %></h2>
+  <% if (user.role === 'Admin') { %>
+    <a class="btn" href="/portal/users/new"><%= t('user.new','新增员工') %></a>
+  <% } %>
+</div>
+
+<div class="card">
+  <table>
+    <thead><tr><th>用户名</th><th>角色</th><th>状态</th><th>创建时间</th><th>操作</th></tr></thead>
+    <tbody>
+      <% rows.forEach(r => { %>
+        <tr>
+          <td><%= r.username %></td>
+          <td><%= r.role %></td>
+          <td><%= r.status %></td>
+          <td><%= new Date(r.createdAt).toLocaleString() %></td>
+          <td><% if (user.role==='Admin') { %><a href="/portal/users/<%= r.id %>/edit">编辑</a><% } %></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>
+
+<%- include('../partials/portal_footer') %>

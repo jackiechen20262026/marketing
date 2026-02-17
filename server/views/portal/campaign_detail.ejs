@@ -1,0 +1,28 @@
+<%- include('../partials/portal_header') %>
+<div class="card" style="margin-bottom:12px">
+  <h2><%= batch.name %></h2>
+  <div class="text-muted">模板：<%= batch.templateName || '-' %> ｜ 状态：<%= batch.status %> ｜ 创建时间：<%= new Date(batch.createdAt).toLocaleString() %></div>
+  <div style="display:flex;gap:8px;margin-top:8px">
+    <form method="post" action="/portal/campaigns/<%= batch.id %>/push-yto"><button class="btn" type="submit">推单到圆通</button></form>
+    <form method="post" action="/portal/campaigns/<%= batch.id %>/refresh-track"><button class="btn btn-ghost" type="submit">刷新轨迹</button></form>
+  </div>
+</div>
+<div class="card">
+  <table>
+    <thead><tr><th>线索</th><th>联系人</th><th>运单号</th><th>物流状态</th><th>最后轨迹时间</th><th>推送状态</th><th>操作</th></tr></thead>
+    <tbody>
+    <% items.forEach(i=>{ %>
+      <tr>
+        <td><a href="/portal/leads/<%= i.leadId %>"><%= i.companyName %></a></td>
+        <td><%= i.contactName || '-' %></td>
+        <td><%= i.waybillNo || '-' %></td>
+        <td><%= i.logisticsStatus || '-' %></td>
+        <td><%= i.lastTrackAt ? new Date(i.lastTrackAt).toLocaleString() : '-' %></td>
+        <td><%= i.pushStatus || '-' %> <%= i.pushError ? ('(' + i.pushError + ')') : '' %></td>
+        <td><% if (i.shipmentId) { %><a href="/portal/shipments/<%= i.shipmentId %>">轨迹</a><% } %></td>
+      </tr>
+    <% }) %>
+    </tbody>
+  </table>
+</div>
+<%- include('../partials/portal_footer') %>
