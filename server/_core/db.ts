@@ -8,6 +8,7 @@ export const db = mysql.createPool({
   database: process.env.DB_NAME || "marketing",
   waitForConnections: true,
   connectionLimit: 10,
+  connectTimeout: Number(process.env.DB_CONNECT_TIMEOUT || 4000),
   namedPlaceholders: true,
   timezone: "Z",
 });

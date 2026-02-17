@@ -1,0 +1,11 @@
+<%- include('../partials/portal_header') %>
+<div class="card">
+  <h2>导入线索</h2>
+  <p class="text-muted">CSV 文本示例：company,contact,phone,city,country,brand</p>
+  <form method="post" action="/portal/leads/import">
+    <textarea name="rawData" rows="10" style="width:100%"></textarea>
+    <div style="margin-top:8px"><button class="btn" type="submit">导入</button></div>
+  </form>
+  <% if (msg) { %><div style="margin-top:10px;color:#166534"><%= msg %></div><% } %>
+</div>
+<%- include('../partials/portal_footer') %>

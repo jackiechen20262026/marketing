@@ -1,0 +1,56 @@
+<%- include('../partials/portal_header') %>
+
+<div class="card" style="margin-bottom:14px">
+  <h2 style="margin:0 0 6px">圆通 API 设置</h2>
+  <div class="text-muted">保存后可启用退单推送；敏感字段页面仅展示脱敏值。</div>
+  <% if (saved === '1') { %><div style="margin-top:8px;color:#166534">配置已保存</div><% } %>
+  <% if (tested === '1') { %><div style="margin-top:8px;color:#166534">连通性测试成功</div><% } %>
+  <% if (tested === '0' || err) { %><div style="margin-top:8px;color:#b91c1c">测试失败，请检查地址与密钥</div><% } %>
+</div>
+
+<div style="display:grid;grid-template-columns:1.2fr .8fr;gap:12px;align-items:start">
+  <div class="card">
+    <form method="post" action="/portal/settings/yuantong" style="display:grid;gap:10px">
+      <label>Base URL<br/><input name="baseUrl"  value="<%= config?.baseUrl || '' %>" placeholder="https://openapi.yto.net.cn" required style="width:100%" <%= canEdit ? "" : "disabled" %>/></label>
+      <label>App Key<br/><input name="appKey"  value="<%= config?.appKey || '' %>" placeholder="输入 app_key" required style="width:100%" <%= canEdit ? "" : "disabled" %>/></label>
+      <label>App Secret（留空表示不修改）<br/><input name="appSecret"  type="password" placeholder="当前：<%= config?.appSecretMask || '' %>" style="width:100%" <%= canEdit ? "" : "disabled" %>/></label>
+      <label>Customer Code<br/><input name="customerCode"  value="<%= config?.customerCode || '' %>" placeholder="可选" style="width:100%" <%= canEdit ? "" : "disabled" %>/></label>
+      <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" name="enabled" value="1" <%= Number(config?.enabled || 0) ? 'checked' : '' %> <%= canEdit ? "" : "disabled" %> /> 启用圆通推送</label>
+      <div style="display:flex;gap:8px">
+        <button class="btn" type="submit" <%= canEdit ? "" : "disabled" %>>保存配置</button>
+      </div>
+    </form>
+    <form method="post" action="/portal/settings/yuantong/test" style="margin-top:8px">
+      <button class="btn btn-ghost" type="submit">测试连通性</button>
+    </form>
+    <div class="text-muted" style="margin-top:10px">当前展示：appKey=<%= config?.appKeyMask || '' %>，appSecret=<%= config?.appSecretMask || '' %></div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">最近调用日志</h3>
+    <div class="text-muted">展示最近 30 条圆通接口请求结果。</div>
+    <div style="max-height:420px;overflow:auto;margin-top:8px">
+      <table>
+        <thead><tr><th>时间</th><th>业务</th><th>状态</th></tr></thead>
+        <tbody>
+        <% logs.forEach(log => { %>
+          <tr>
+            <td><%= log.createdAt %></td>
+            <td><%= log.bizType %><br/><span class="text-muted"><%= log.bizId %></span></td>
+            <td>
+              <% if (Number(log.success) === 1) { %>
+                <span class="pill">成功</span>
+              <% } else { %>
+                <span class="pill" style="background:#fee2e2;border-color:#fecaca;color:#991b1b">失败</span>
+                <div class="text-muted"><%= log.errorMessage || ('HTTP ' + (log.httpStatus || '-')) %></div>
+              <% } %>
+            </td>
+          </tr>
+        <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<%- include('../partials/portal_footer') %>

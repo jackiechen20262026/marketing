@@ -1,0 +1,91 @@
+<%- include("../partials/portal_header", { title, user }) %>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+  <div class="card">
+    <div style="font-weight:800;margin-bottom:8px">导入亚马逊卖家线索（CSV 文本）</div>
+    <form method="post" action="/portal/lead-pool/import">
+      <textarea name="rawData" rows="8" style="width:100%" placeholder="每行一条：公司,联系人,街道,门牌,邮编,城市,国家,社会统一号,网站,品牌(用|分隔),品类,亚马逊shop地址,公司简介,电话,邮箱"></textarea>
+      <div class="text-muted" style="margin:6px 0">示例：ACME LLC,Tom,Nanshan,88,518000,Shenzhen,China,9144XXXX,https://acme.com,BrandA|BrandB,消费电子,https://www.amazon.com/shops/acme,主营跨境电商,1380000,tom@acme.com</div>
+      <button class="btn" type="submit">导入线索</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <div style="font-weight:800;margin-bottom:8px">新建线索（12字段）</div>
+    <form method="post" action="/portal/lead-pool/create" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <input name="companyName" placeholder="1 公司*" required />
+      <input name="contactName" placeholder="2 联系人" />
+      <input name="street" placeholder="3 街道" />
+      <input name="houseNumber" placeholder="4 门牌" />
+      <input name="postalCode" placeholder="5 邮编" />
+      <input name="city" placeholder="6 城市" />
+      <input name="country" value="China" placeholder="国家（默认China）" />
+      <input name="socialCreditCode" placeholder="7 社会统一号" />
+      <input name="website" placeholder="8 公司网站" />
+      <input name="brand" placeholder="9 品牌（可多个，逗号分隔）" />
+      <input name="category" placeholder="10 品类" />
+      <input name="amazonShopUrl" placeholder="11 亚马逊shop地址" />
+      <textarea name="companyProfile" rows="3" style="grid-column:span 2" placeholder="12 公司简介"></textarea>
+
+      <input name="phone" placeholder="电话" />
+      <input name="email" placeholder="邮箱" />
+      <input name="source" value="Amazon" placeholder="来源" />
+      <input name="priority" value="M" placeholder="优先级" />
+
+      <button class="btn" type="submit" style="grid-column:span 2">保存线索</button>
+    </form>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:12px">
+  <form method="get" action="/portal/lead-pool" style="display:flex;gap:8px;flex-wrap:wrap">
+    <input name="q" value="<%= q %>" placeholder="搜索公司/联系人/电话/城市" style="min-width:260px" />
+    <input name="country" value="<%= country %>" placeholder="国家" />
+    <select name="source">
+      <option value="">全部来源</option>
+      <% sources.forEach(item=>{ %>
+        <option value="<%= item.source %>" <%= source===item.source?"selected":"" %>><%= item.source %></option>
+      <% }) %>
+    </select>
+    <button class="btn" type="submit">筛选</button>
+  </form>
+</div>
+
+<div class="card">
+  <div style="font-weight:800;margin-bottom:10px">线索池（勾选后可去发宣传单）</div>
+  <form method="get" action="/portal/campaigns">
+    <table>
+      <thead>
+        <tr>
+          <th><input type="checkbox" onclick="document.querySelectorAll('.lead-box').forEach(x=>x.checked=this.checked)"/></th>
+          <th>公司</th>
+          <th>联系人</th>
+          <th>邮箱</th>
+          <th>电话</th>
+          <th>国家</th>
+          <th>阶段</th>
+        </tr>
+      </thead>
+      <tbody>
+      <% rows.forEach(r=>{ %>
+        <tr>
+          <td><input class="lead-box" type="checkbox" name="ids" value="<%= r.id %>"/></td>
+          <td><a href="/portal/leads/<%= r.id %>"><%= r.companyName %></a></td>
+          <td><%= r.contactName || '-' %></td>
+          <td><%= r.email || '-' %></td>
+          <td><%= r.phone || '-' %></td>
+          <td><%= r.country || '-' %></td>
+          <td><span class="pill"><%= r.stage %></span></td>
+        </tr>
+      <% }) %>
+      <% if (!rows.length) { %><tr><td colspan="7" class="text-muted">暂无线索</td></tr><% } %>
+      </tbody>
+    </table>
+
+    <div style="margin-top:10px">
+      <button class="btn" type="submit">进入发宣传单页面</button>
+    </div>
+  </form>
+</div>
+
+<%- include("../partials/portal_footer") %>

@@ -1,0 +1,24 @@
+<%- include('../partials/portal_header') %>
+<div class="card">
+  <h2>线索智能推荐</h2>
+  <form method="get" action="/portal/campaigns/new">
+    <table>
+      <thead><tr><th>#</th><th>公司</th><th>联系人</th><th>电话</th><th>推荐原因</th><th>宣传册次数</th><th>拜访次数</th></tr></thead>
+      <tbody>
+      <% rows.forEach(r=>{ %>
+        <tr>
+          <td><input type="checkbox" name="ids" value="<%= r.id %>" /></td>
+          <td><a href="/portal/leads/<%= r.id %>"><%= r.companyName %></a></td>
+          <td><%= r.contactName || '-' %></td>
+          <td><%= r.phone || '-' %></td>
+          <td><%= r.reason %></td>
+          <td><%= r.brochureSentCount %></td>
+          <td><%= r.visitCount %></td>
+        </tr>
+      <% }) %>
+      </tbody>
+    </table>
+    <button class="btn" type="submit" style="margin-top:10px">一键创建批次</button>
+  </form>
+</div>
+<%- include('../partials/portal_footer') %>

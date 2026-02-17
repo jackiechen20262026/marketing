@@ -6,12 +6,16 @@
   "license": "MIT",
   "scripts": {
     "dev": "node server.js",
-    "start": "NODE_ENV=production node dist/index.js",
-    "build": "vite build && esbuild server/_core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
+    "start": "node server.js",
+    "build": "npm run clean && vite build && esbuild server/_core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
     "check": "tsc --noEmit",
     "format": "prettier --write .",
     "test": "vitest run",
-    "db:push": "drizzle-kit generate && drizzle-kit migrate"
+    "db:push": "drizzle-kit generate && drizzle-kit migrate",
+    "db:init": "node scripts/init-db.mjs",
+    "clean": "node scripts/clean-build.mjs",
+    "start:dist": "node dist/index.js",
+    "diag:routes": "node scripts/diagnose-route-resolution.mjs"
   },
   "dependencies": {
     "@trpc/client": "^11.6.0",

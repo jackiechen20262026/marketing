@@ -1,51 +1,59 @@
-<%- include("../partials/portal_header", { title, user }) %>
+<%- include('../partials/portal_header') %>
 
 <div class="card" style="margin-bottom:12px">
-  <form method="get" action="/portal/leads" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-    <input name="q" value="<%= q %>" placeholder="搜索公司/联系人/邮箱/电话" style="padding:8px;border-radius:10px;min-width:260px"/>
-    <select name="stage" style="padding:8px;border-radius:10px">
-      <option value="">全部阶段</option>
-      <% stages.forEach(s=>{ %>
-        <option value="<%= s %>" <%= s===stage ? "selected" : "" %>><%= s %></option>
-      <% }) %>
+  <form method="get" action="/portal/leads" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <input name="company_name" value="<%= q %>" placeholder="公司/联系人/电话" />
+    <input name="city" value="<%= city %>" placeholder="城市" />
+    <input name="country" value="<%= country %>" placeholder="国家" />
+    <select name="next_visit_reminder">
+      <option value="">提醒筛选</option>
+      <option value="today" <%= reminder==='today'?'selected':'' %>>今天</option>
+      <option value="week" <%= reminder==='week'?'selected':'' %>>本周</option>
+      <option value="overdue" <%= reminder==='overdue'?'selected':'' %>>超期</option>
     </select>
-    <button class="btn" type="submit">筛选</button>
+    <button class="btn" type="submit"><%= t('filter','筛选') %></button>
+    <a class="btn btn-ghost" href="/portal/leads/new"><%= t('lead.new','新增线索') %></a>
+    <% if (canImport) { %><a class="btn btn-ghost" href="/portal/leads/import"><%= t('lead.import','导入') %></a><% } %>
+    <a class="btn btn-ghost" href="/portal/leads/template"><%= t('lead.template','下载模板') %></a>
+    <% if (canExport) { %><a class="btn btn-ghost" href="/portal/leads/export"><%= t('lead.export','导出') %></a><% } %>
+    <a class="btn btn-ghost" href="/portal/leads/recommendations"><%= t('lead.recommend','智能推荐') %></a>
   </form>
 </div>
 
 <div class="card">
-  <div style="font-weight:800;margin-bottom:10px">线索列表</div>
-  <table>
-    <thead>
+  <form method="get" action="/portal/campaigns/new">
+    <table>
+      <thead>
       <tr>
-        <th>公司</th>
-        <th>联系人</th>
-        <th>邮箱</th>
-        <th>电话</th>
-        <th>阶段</th>
-        <th>优先级</th>
-        <th>来源</th>
-        <th>更新时间</th>
+        <th>#</th><th>公司</th><th>联系人</th><th>电话</th><th>城市/国家</th><th>品牌</th>
+        <th>宣传册发送次数</th><th>拜访次数</th><th>最后发送时间</th><th>最后拜访时间</th><th>下次提醒</th><th>负责人</th><th>操作</th>
       </tr>
-    </thead>
-    <tbody>
-      <% leads.forEach(l=>{ %>
-        <tr>
-          <td><a href="/portal/leads/<%= l.id %>?tab=overview"><%= l.companyName %></a></td>
-          <td><%= l.contactName || "-" %></td>
-          <td><%= l.email || "-" %></td>
-          <td><%= l.phone || "-" %></td>
-          <td><span class="pill"><%= l.stage %></span></td>
-          <td><%= l.priority || "-" %></td>
-          <td><%= l.source || "-" %></td>
-          <td><%= l.updatedAt ? new Date(l.updatedAt).toLocaleString() : "-" %></td>
-        </tr>
+      </thead>
+      <tbody>
+      <% rows.forEach(row => { const bs = JSON.parse(row.brands || '[]'); %>
+      <tr>
+        <td><input type="checkbox" name="ids" value="<%= row.id %>" /></td>
+        <td><a href="/portal/leads/<%= row.id %>"><%= row.companyName %></a></td>
+        <td><%= row.contactName || '-' %></td>
+        <td><%= row.phone || '-' %></td>
+        <td><%= (row.city||'-') + ' / ' + (row.country||'-') %></td>
+        <td><%= bs.join('、') || '-' %></td>
+        <td><%= row.brochureSentCount || 0 %></td>
+        <td><%= row.visitCount || 0 %></td>
+        <td><%= row.lastSentAt ? new Date(row.lastSentAt).toLocaleString() : '-' %></td>
+        <td><%= row.lastVisitAt ? new Date(row.lastVisitAt).toLocaleString() : '-' %></td>
+        <td><%= row.nextVisitReminder ? new Date(row.nextVisitReminder).toLocaleString() : '-' %></td>
+        <td><%= row.owner || '-' %></td>
+        <td>
+          <a href="/portal/leads/<%= row.id %>">详情</a> |
+          <a href="/portal/leads/<%= row.id %>/edit">编辑</a>
+        </td>
+      </tr>
       <% }) %>
-      <% if (!leads.length) { %>
-        <tr><td colspan="8" style="color:#b8c7ea">暂无数据</td></tr>
-      <% } %>
-    </tbody>
-  </table>
+      </tbody>
+    </table>
+    <div style="margin-top:10px"><button class="btn" type="submit"><%= t('campaign.batch.create','批量创建宣传册批次') %></button></div>
+  </form>
 </div>
 
-<%- include("../partials/portal_footer") %>
+<%- include('../partials/portal_footer') %>
