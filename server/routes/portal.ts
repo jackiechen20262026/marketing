@@ -4,7 +4,6 @@ import { db } from "../_core/db";
 
 type User = { id: string; name: string; role: "Admin" | "Supervisor" | "Salesperson" };
 
-// 假登录（后续接 OAuth/session）
 function requireAuth(req: any, _res: any, next: any) {
   const user: User = { id: "u_admin_001", name: "admin", role: "Admin" };
   req.user = user;
@@ -12,48 +11,54 @@ function requireAuth(req: any, _res: any, next: any) {
 }
 
 const NEXT_STAGE: Record<string, string | null> = {
-  "已导入": "已筛选",
-  "已筛选": "已发册",
-  "已发册": "跟踪中",
-  "跟踪中": "已签收",
-  "已签收": "跟进中",
-  "跟进中": "潜在客户",
-  "潜在客户": "已转化",
-  "已转化": null,
-  "退件": "已关闭",
-  "已关闭": null,
+  已导入: "已筛选",
+  已筛选: "已发册",
+  已发册: "跟踪中",
+  跟踪中: "已签收",
+  已签收: "跟进中",
+  跟进中: "潜在客户",
+  潜在客户: "已转化",
+  已转化: null,
+  退件: "已关闭",
+  已关闭: null,
 };
 
-const ALL_STAGES = [
-  "已导入",
-  "已筛选",
-  "已发册",
-  "跟踪中",
-  "已签收",
-  "跟进中",
-  "潜在客户",
-  "已转化",
-  "退件",
-  "已关闭",
-] as const;
+const ALL_STAGES = ["已导入", "已筛选", "已发册", "跟踪中", "已签收", "跟进中", "潜在客户", "已转化", "退件", "已关闭"] as const;
 
 function buildLeadScopeWhere(user: User) {
   if (user.role === "Admin") return { whereSql: "1=1", params: {} as any };
   return { whereSql: "owner_id = :uid", params: { uid: user.id } as any };
 }
 
+function parseIds(input: unknown): string[] {
+  if (Array.isArray(input)) return input.map(x => String(x).trim()).filter(Boolean);
+  return String(input || "")
+    .split(",")
+    .map(x => x.trim())
+    .filter(Boolean);
+}
+
 export function portalRoutes(): Router {
   const r = createRouter();
+
+  const wrapAsync = (handler: any) => (req: any, res: any, next: any) => {
+    Promise.resolve(handler(req, res, next)).catch(next);
+  };
+  for (const method of ["get", "post"] as const) {
+    const raw = (r as any)[method].bind(r);
+    (r as any)[method] = (path: string, ...handlers: any[]) => {
+      const wrapped = handlers.map(h => (h?.constructor?.name === "AsyncFunction" ? wrapAsync(h) : h));
+      return raw(path, ...wrapped);
+    };
+  }
+
   r.use(requireAuth);
 
   r.get("/", async (req, res) => {
     const user = req.user as User;
     const scope = buildLeadScopeWhere(user);
 
-    const [[total]] = await db.query<any[]>(
-      `SELECT COUNT(*) AS c FROM leads WHERE ${scope.whereSql}`,
-      scope.params
-    );
+    const [[total]] = await db.query<any[]>(`SELECT COUNT(*) AS c FROM leads WHERE ${scope.whereSql}`, scope.params);
     const [[converted]] = await db.query<any[]>(
       `SELECT COUNT(*) AS c FROM leads WHERE ${scope.whereSql} AND workflow_stage='已转化'`,
       scope.params
@@ -81,22 +86,228 @@ export function portalRoutes(): Router {
     });
   });
 
-  r.get("/workflow", async (req, res) => {
+  r.get("/lead-pool", async (req, res) => {
     const user = req.user as User;
     const scope = buildLeadScopeWhere(user);
 
+    const q = String(req.query.q || "");
+    const country = String(req.query.country || "");
+    const source = String(req.query.source || "");
+
+    const whereParts: string[] = [`${scope.whereSql}`];
+    const params: any = { ...scope.params, q, qLike: `%${q}%`, country, source };
+
+    if (country) whereParts.push("country = :country");
+    if (source) whereParts.push("source = :source");
+    if (q) {
+      whereParts.push("(company_name LIKE :qLike OR contact_name LIKE :qLike OR email LIKE :qLike OR phone LIKE :qLike)");
+    }
+
+    const whereSql = whereParts.join(" AND ");
+
+    const [rows] = await db.query<any[]>(
+      `SELECT id, company_name AS companyName, contact_name AS contactName,
+              email, phone, country, source, priority,
+              workflow_stage AS stage, created_at AS createdAt
+       FROM leads
+       WHERE ${whereSql}
+       ORDER BY created_at DESC
+       LIMIT 300`,
+      params
+    );
+
+    const [sources] = await db.query<any[]>(`SELECT DISTINCT source FROM leads WHERE source IS NOT NULL AND source <> '' ORDER BY source ASC`);
+
+    res.render("portal/lead_pool", {
+      title: "Lead Pool",
+      user,
+      q,
+      country,
+      source,
+      rows,
+      sources,
+    });
+  });
+
+  r.post("/lead-pool/create", async (req, res) => {
+    const user = req.user as User;
+    const payload = {
+      id: `l_${Math.random().toString(36).slice(2, 10)}`,
+      companyName: String(req.body.companyName || "").trim(),
+      contactName: String(req.body.contactName || "").trim(),
+      email: String(req.body.email || "").trim(),
+      phone: String(req.body.phone || "").trim(),
+      country: String(req.body.country || "").trim(),
+      address: String(req.body.address || "").trim(),
+      source: String(req.body.source || "Amazon").trim(),
+      priority: String(req.body.priority || "M").trim(),
+    };
+
+    if (!payload.companyName) return res.status(400).send("companyName required");
+
+    await db.query(
+      `INSERT INTO leads(
+          id, company_name, contact_name, email, phone, country, address,
+          source, priority, owner_id, workflow_stage, created_at, updated_at
+       ) VALUES(
+          :id, :companyName, :contactName, :email, :phone, :country, :address,
+          :source, :priority, :ownerId, '已导入', NOW(), NOW()
+       )`,
+      {
+        ...payload,
+        ownerId: user.id,
+      }
+    );
+
+    res.redirect("/portal/lead-pool");
+  });
+
+  r.post("/lead-pool/import", async (req, res) => {
+    const user = req.user as User;
+    const raw = String(req.body.rawData || "").trim();
+    if (!raw) return res.status(400).send("rawData required");
+
+    const lines = raw.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+    let success = 0;
+
+    for (const line of lines) {
+      const [companyName, contactName, email, phone, country, address] = line.split(",").map(x => (x || "").trim());
+      if (!companyName) continue;
+      const id = `l_${Math.random().toString(36).slice(2, 10)}`;
+
+      await db.query(
+        `INSERT INTO leads(
+            id, company_name, contact_name, email, phone, country, address,
+            source, priority, owner_id, workflow_stage, created_at, updated_at
+         ) VALUES(
+            :id, :companyName, :contactName, :email, :phone, :country, :address,
+            'Amazon', 'M', :ownerId, '已导入', NOW(), NOW()
+         )`,
+        { id, companyName, contactName: contactName || null, email: email || null, phone: phone || null, country: country || null, address: address || null, ownerId: user.id }
+      );
+      success++;
+    }
+
+    res.redirect(`/portal/lead-pool?imported=${success}`);
+  });
+
+  r.get("/campaigns", async (req, res) => {
+    const user = req.user as User;
+    const selectedIds = parseIds(req.query.ids);
+
+    let selectedLeads: any[] = [];
+    if (selectedIds.length) {
+      const placeholders = selectedIds.map((_, i) => `:id${i}`).join(",");
+      const params = selectedIds.reduce((acc: any, id, i) => ({ ...acc, [`id${i}`]: id }), {});
+      const [rows] = await db.query<any[]>(
+        `SELECT id, company_name AS companyName, contact_name AS contactName,
+                phone, country, address, workflow_stage AS stage
+         FROM leads
+         WHERE id IN (${placeholders})`,
+        params
+      );
+      selectedLeads = rows;
+    }
+
+    const [batches] = await db.query<any[]>(
+      `SELECT b.id, b.name, b.template_name AS templateName, b.status,
+              b.created_at AS createdAt, COUNT(i.id) AS leadCount
+       FROM campaign_batches b
+       LEFT JOIN campaign_batch_items i ON i.batch_id = b.id
+       GROUP BY b.id
+       ORDER BY b.created_at DESC
+       LIMIT 100`
+    );
+
+    res.render("portal/campaign", { title: "Campaign", user, selectedLeads, selectedIds, batches });
+  });
+
+  r.post("/campaigns", async (req, res) => {
+    const user = req.user as User;
+    const ids = parseIds(req.body.ids);
+    const name = String(req.body.name || "").trim();
+    const templateName = String(req.body.templateName || "标准宣传单").trim();
+    const note = String(req.body.note || "").trim();
+
+    if (!ids.length || !name) return res.status(400).send("name and ids required");
+
+    const batchId = `cb_${Math.random().toString(36).slice(2, 10)}`;
+    await db.query(
+      `INSERT INTO campaign_batches(id, name, template_name, note, status, operator_id, created_at, updated_at)
+       VALUES(:id, :name, :templateName, :note, 'Draft', :uid, NOW(), NOW())`,
+      { id: batchId, name, templateName, note: note || null, uid: user.id }
+    );
+
+    for (const leadId of ids) {
+      await db.query(
+        `INSERT INTO campaign_batch_items(id, batch_id, lead_id, created_at)
+         VALUES(:id, :batchId, :leadId, NOW())`,
+        { id: `cbi_${Math.random().toString(36).slice(2, 10)}`, batchId, leadId }
+      );
+
+      await db.query(`UPDATE leads SET workflow_stage='已发册', updated_at=NOW() WHERE id=:id`, { id: leadId });
+      await db.query(
+        `INSERT INTO workflow_stage_history(lead_id, from_stage, to_stage, operator_id, note, created_at)
+         VALUES(:leadId, '已筛选', '已发册', :uid, :note, NOW())`,
+        { leadId, uid: user.id, note: `批次 ${name}` }
+      );
+    }
+
+    res.redirect("/portal/campaigns");
+  });
+
+  r.post("/campaigns/:id/push-yto", async (req, res) => {
+    const batchId = req.params.id;
+
+    const [items] = await db.query<any[]>(
+      `SELECT i.lead_id AS leadId, l.contact_name AS contactName, l.phone, l.country, l.address
+       FROM campaign_batch_items i
+       INNER JOIN leads l ON l.id = i.lead_id
+       WHERE i.batch_id = :batchId`,
+      { batchId }
+    );
+
+    for (const item of items) {
+      const shipmentId = `s_${Math.random().toString(36).slice(2, 10)}`;
+      await db.query(
+        `INSERT INTO shipments(
+          id, lead_id, carrier, waybill_no, push_status, logistics_status,
+          receiver_name, receiver_phone, receiver_country, receiver_address,
+          created_at, updated_at
+        ) VALUES(
+          :id, :leadId, 'YTO', :waybillNo, 'Pushed', 'Pending',
+          :name, :phone, :country, :address,
+          NOW(), NOW()
+        )`,
+        {
+          id: shipmentId,
+          leadId: item.leadId,
+          waybillNo: `YT${Date.now().toString().slice(-8)}${Math.floor(Math.random() * 90 + 10)}`,
+          name: item.contactName || null,
+          phone: item.phone || null,
+          country: item.country || null,
+          address: item.address || null,
+        }
+      );
+
+      await db.query(`UPDATE leads SET workflow_stage='跟踪中', updated_at=NOW() WHERE id=:id`, { id: item.leadId });
+    }
+
+    await db.query(`UPDATE campaign_batches SET status='Pushed', updated_at=NOW() WHERE id=:id`, { id: batchId });
+    res.redirect("/portal/shipments");
+  });
+
+  r.get("/workflow", async (req, res) => {
+    const user = req.user as User;
+    const scope = buildLeadScopeWhere(user);
     const stage = (req.query.stage as string) || "已导入";
     const q = (req.query.q as string) || "";
 
     const [counts] = await db.query<any[]>(
-      `SELECT workflow_stage AS stage, COUNT(*) AS cnt
-       FROM leads
-       WHERE ${scope.whereSql}
-       GROUP BY workflow_stage`,
+      `SELECT workflow_stage AS stage, COUNT(*) AS cnt FROM leads WHERE ${scope.whereSql} GROUP BY workflow_stage`,
       scope.params
     );
 
-    const params: any = { ...scope.params, stage, qLike: `%${q}%` };
     const [leads] = await db.query<any[]>(
       `SELECT id, company_name AS companyName, contact_name AS contactName, phone, email,
               workflow_stage AS stage, priority, source, updated_at AS updatedAt
@@ -106,19 +317,10 @@ export function portalRoutes(): Router {
          AND (:q = '' OR company_name LIKE :qLike OR contact_name LIKE :qLike OR email LIKE :qLike OR phone LIKE :qLike)
        ORDER BY updated_at DESC
        LIMIT 200`,
-      { ...params, q }
+      { ...scope.params, stage, q, qLike: `%${q}%` }
     );
 
-    res.render("portal/workflow", {
-      title: "Workflow",
-      user,
-      stage,
-      q,
-      stageCounts: counts,
-      leads,
-      nextStageMap: NEXT_STAGE,
-      stages: ALL_STAGES,
-    });
+    res.render("portal/workflow", { title: "Workflow", user, stage, q, stageCounts: counts, leads, nextStageMap: NEXT_STAGE, stages: ALL_STAGES });
   });
 
   r.post("/workflow/:id/move", async (req, res) => {
@@ -126,31 +328,16 @@ export function portalRoutes(): Router {
     const id = req.params.id;
     const toStage = String(req.body.toStage || "");
     const note = String(req.body.note || "");
-
     if (!toStage) return res.status(400).send("toStage required");
 
-    const [[row]] = await db.query<any[]>(
-      `SELECT workflow_stage AS stage FROM leads WHERE id = :id`,
-      { id }
-    );
+    const [[row]] = await db.query<any[]>(`SELECT workflow_stage AS stage FROM leads WHERE id = :id`, { id });
     if (!row) return res.status(404).send("Lead not found");
-    const fromStage = row.stage as string;
 
-    const next = NEXT_STAGE[fromStage] ?? null;
-    const allowed = new Set([next, "退件", "已关闭"].filter(Boolean) as string[]);
-    if (!allowed.has(toStage) && user.role !== "Admin") {
-      return res.status(400).send(`Stage move not allowed: ${fromStage} -> ${toStage}`);
-    }
-
-    await db.query(
-      `UPDATE leads SET workflow_stage=:toStage, updated_at=NOW() WHERE id=:id`,
-      { id, toStage }
-    );
-
+    await db.query(`UPDATE leads SET workflow_stage=:toStage, updated_at=NOW() WHERE id=:id`, { id, toStage });
     await db.query(
       `INSERT INTO workflow_stage_history(lead_id, from_stage, to_stage, operator_id, note, created_at)
        VALUES(:leadId, :fromStage, :toStage, :opId, :note, NOW())`,
-      { leadId: id, fromStage, toStage, opId: user.id, note: note || null }
+      { leadId: id, fromStage: row.stage, toStage, opId: user.id, note: note || null }
     );
 
     res.redirect(`/portal/workflow?stage=${encodeURIComponent(toStage)}`);
@@ -159,59 +346,37 @@ export function portalRoutes(): Router {
   r.get("/leads", async (req, res) => {
     const user = req.user as User;
     const scope = buildLeadScopeWhere(user);
-
     const q = (req.query.q as string) || "";
     const stage = (req.query.stage as string) || "";
-    const params: any = { ...scope.params, q, qLike: `%${q}%`, stage };
 
     const whereParts = [`${scope.whereSql}`];
     if (stage) whereParts.push(`workflow_stage = :stage`);
-    if (q)
-      whereParts.push(
-        `(company_name LIKE :qLike OR contact_name LIKE :qLike OR email LIKE :qLike OR phone LIKE :qLike)`
-      );
-
-    const whereSql = whereParts.join(" AND ");
+    if (q) whereParts.push(`(company_name LIKE :qLike OR contact_name LIKE :qLike OR email LIKE :qLike OR phone LIKE :qLike)`);
 
     const [rows] = await db.query<any[]>(
       `SELECT id, company_name AS companyName, contact_name AS contactName, email, phone,
               workflow_stage AS stage, priority, source, created_at AS createdAt, updated_at AS updatedAt
        FROM leads
-       WHERE ${whereSql}
+       WHERE ${whereParts.join(" AND ")}
        ORDER BY updated_at DESC
        LIMIT 200`,
-      params
+      { ...scope.params, stage, qLike: `%${q}%` }
     );
 
-    res.render("portal/leads", {
-      title: "Leads",
-      user,
-      q,
-      stage,
-      stages: ALL_STAGES,
-      leads: rows,
-    });
+    res.render("portal/leads", { title: "Leads", user, q, stage, stages: ALL_STAGES, leads: rows });
   });
 
-  // ========== Lead Detail ==========
   r.get("/leads/:id", async (req, res) => {
     const user = req.user as User;
     const scope = buildLeadScopeWhere(user);
-
     const id = req.params.id;
     const tab = (req.query.tab as string) || "overview";
 
     const [[lead]] = await db.query<any[]>(
-      `SELECT id,
-              company_name AS companyName,
-              contact_name AS contactName,
-              email, phone,
-              country, address,
-              workflow_stage AS stage,
-              priority, source,
-              owner_id AS ownerId,
-              created_at AS createdAt,
-              updated_at AS updatedAt
+      `SELECT id, company_name AS companyName, contact_name AS contactName,
+              email, phone, country, address, workflow_stage AS stage,
+              priority, source, owner_id AS ownerId,
+              created_at AS createdAt, updated_at AS updatedAt
        FROM leads
        WHERE id = :id AND ${scope.whereSql}
        LIMIT 1`,
@@ -242,15 +407,10 @@ export function portalRoutes(): Router {
     );
 
     const [[shipment]] = await db.query<any[]>(
-      `SELECT s.id, s.carrier,
-              s.waybill_no AS waybillNo,
-              s.push_status AS pushStatus,
-              s.logistics_status AS logisticsStatus,
-              s.receiver_name AS receiverName,
-              s.receiver_phone AS receiverPhone,
-              s.receiver_country AS receiverCountry,
-              s.receiver_address AS receiverAddress,
-              s.created_at AS createdAt, s.updated_at AS updatedAt
+      `SELECT s.id, s.carrier, s.waybill_no AS waybillNo, s.push_status AS pushStatus,
+              s.logistics_status AS logisticsStatus, s.receiver_name AS receiverName,
+              s.receiver_phone AS receiverPhone, s.receiver_country AS receiverCountry,
+              s.receiver_address AS receiverAddress, s.created_at AS createdAt, s.updated_at AS updatedAt
        FROM shipments s
        WHERE s.lead_id = :id
        ORDER BY s.created_at DESC
@@ -258,66 +418,32 @@ export function portalRoutes(): Router {
       { id }
     );
 
-    let events: any[] = [];
-    if (shipment?.id) {
-      const [ev] = await db.query<any[]>(
-        `SELECT e.id, e.event_time AS eventTime, e.status, e.description, e.location, e.created_at AS createdAt
-         FROM shipment_events e
-         WHERE e.shipment_id = :sid
-         ORDER BY COALESCE(e.event_time, e.created_at) DESC
-         LIMIT 300`,
-        { sid: shipment.id }
-      );
-      events = ev;
-    }
+    const [events] = shipment?.id
+      ? await db.query<any[]>(
+          `SELECT e.id, e.event_time AS eventTime, e.status, e.description, e.location, e.created_at AS createdAt
+           FROM shipment_events e
+           WHERE e.shipment_id = :sid
+           ORDER BY COALESCE(e.event_time, e.created_at) DESC
+           LIMIT 300`,
+          { sid: shipment.id }
+        )
+      : [[] as any[]];
 
     const timeline = [
-      ...stageHistory.map((x: any) => ({
-        type: "stage",
-        at: x.createdAt,
-        title: `阶段变更：${x.fromStage || "-"} → ${x.toStage}`,
-        meta: x.operator ? `操作人：${x.operator}` : "",
-        note: x.note || "",
-      })),
-      ...followups.map((x: any) => ({
-        type: "followup",
-        at: x.createdAt,
-        title: `跟进：${x.channel}`,
-        meta: x.operator ? `记录人：${x.operator}` : "",
-        note: `${x.content}${x.result ? `（结果：${x.result}）` : ""}`,
-      })),
-      ...events.map((x: any) => ({
-        type: "logistics",
-        at: x.eventTime || x.createdAt,
-        title: `物流：${x.status || "-"}`,
-        meta: x.location || "",
-        note: x.description || "",
-      })),
+      ...stageHistory.map((x: any) => ({ type: "stage", at: x.createdAt, title: `阶段变更：${x.fromStage || "-"} → ${x.toStage}`, meta: x.operator ? `操作人：${x.operator}` : "", note: x.note || "" })),
+      ...followups.map((x: any) => ({ type: "followup", at: x.createdAt, title: `跟进：${x.channel}`, meta: x.operator ? `记录人：${x.operator}` : "", note: `${x.content}${x.result ? `（结果：${x.result}）` : ""}` })),
+      ...(events as any[]).map((x: any) => ({ type: "logistics", at: x.eventTime || x.createdAt, title: `物流：${x.status || "-"}`, meta: x.location || "", note: x.description || "" })),
     ].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
 
-    res.render("portal/lead_detail", {
-      title: `Lead · ${lead.companyName}`,
-      user,
-      lead,
-      tab,
-      stages: ALL_STAGES,
-      nextStageMap: NEXT_STAGE,
-      followups,
-      stageHistory,
-      shipment: shipment || null,
-      events,
-      timeline,
-    });
+    res.render("portal/lead_detail", { title: `Lead · ${lead.companyName}`, user, lead, tab, stages: ALL_STAGES, nextStageMap: NEXT_STAGE, followups, stageHistory, shipment: shipment || null, events, timeline });
   });
 
   r.post("/leads/:id/followups", async (req, res) => {
     const user = req.user as User;
     const id = req.params.id;
-
     const channel = String(req.body.channel || "Other");
     const content = String(req.body.content || "").trim();
     const result = String(req.body.result || "").trim();
-
     if (!content) return res.status(400).send("content required");
 
     await db.query(
@@ -329,218 +455,64 @@ export function portalRoutes(): Router {
     res.redirect(`/portal/leads/${encodeURIComponent(id)}?tab=followups`);
   });
 
-  r.post("/leads/:id/shipments", async (req, res) => {
-    const id = req.params.id;
-
-    const [[lead]] = await db.query<any[]>(
-      `SELECT id, contact_name AS contactName, phone, country, address
-       FROM leads
-       WHERE id = :id
-       LIMIT 1`,
-      { id }
-    );
-    if (!lead) return res.status(404).send("Lead not found");
-
-    const shipmentId = `s_${Math.random().toString(36).slice(2, 10)}`;
-
-    await db.query(
-      `INSERT INTO shipments(
-          id, lead_id, carrier, push_status, logistics_status,
-          receiver_name, receiver_phone, receiver_country, receiver_address,
-          created_at, updated_at
-       ) VALUES(
-          :sid, :leadId, 'YTO', 'NotPushed', 'Pending',
-          :name, :phone, :country, :addr,
-          NOW(), NOW()
-       )`,
-      {
-        sid: shipmentId,
-        leadId: id,
-        name: lead.contactName || null,
-        phone: lead.phone || null,
-        country: lead.country || null,
-        addr: lead.address || null,
-      }
-    );
-
-    res.redirect(`/portal/leads/${encodeURIComponent(id)}?tab=logistics`);
-  });
-  
-    // =========================
-  // Shipments List（订单列表）
-  // =========================
-  r.get("/shipments", async (req, res) => {
-    const user = req.user as User;
-    const scope = buildLeadScopeWhere(user);
-
+  r.get("/followups", async (req, res) => {
     const q = String(req.query.q || "");
-    const status = String(req.query.status || ""); // Pending|InTransit|Delivered|Exception|Returned
-    const pushStatus = String(req.query.pushStatus || ""); // NotPushed|Pushed|Failed
+    const result = String(req.query.result || "");
 
-    // 统计卡片
-    const [statRows] = await db.query<any[]>(
-      `SELECT logistics_status AS s, COUNT(*) AS c
-       FROM shipments s
-       INNER JOIN leads l ON l.id = s.lead_id
-       WHERE ${scope.whereSql}
-       GROUP BY logistics_status`,
-      scope.params
-    );
-
-    const stats = {
-      total: 0,
-      Pending: 0,
-      InTransit: 0,
-      Delivered: 0,
-      Exception: 0,
-      Returned: 0,
-    };
-
-    for (const r of statRows) {
-      const key = String(r.s || "");
-      const cnt = Number(r.c || 0);
-      stats.total += cnt;
-      if (key in stats) (stats as any)[key] = cnt;
-    }
-
-    const whereParts: string[] = [`${scope.whereSql}`];
-    const params: any = { ...scope.params, q, qLike: `%${q}%`, status, pushStatus };
-
-    if (status) whereParts.push(`s.logistics_status = :status`);
-    if (pushStatus) whereParts.push(`s.push_status = :pushStatus`);
-    if (q) {
-      whereParts.push(
-        `(s.waybill_no LIKE :qLike OR s.receiver_name LIKE :qLike OR s.receiver_phone LIKE :qLike OR l.company_name LIKE :qLike)`
-      );
-    }
-
-    const whereSql = whereParts.join(" AND ");
+    const whereParts: string[] = ["1=1"];
+    if (q) whereParts.push("(l.company_name LIKE :qLike OR f.content LIKE :qLike)");
+    if (result) whereParts.push("f.result = :result");
 
     const [rows] = await db.query<any[]>(
-      `SELECT s.id,
-              s.waybill_no AS waybillNo,
-              s.push_status AS pushStatus,
-              s.logistics_status AS logisticsStatus,
-              s.receiver_name AS receiverName,
-              s.receiver_phone AS receiverPhone,
-              s.receiver_country AS receiverCountry,
-              s.receiver_address AS receiverAddress,
-              s.created_at AS createdAt,
-              s.updated_at AS updatedAt,
-              l.id AS leadId,
-              l.company_name AS companyName
-       FROM shipments s
-       INNER JOIN leads l ON l.id = s.lead_id
-       WHERE ${whereSql}
-       ORDER BY s.updated_at DESC
+      `SELECT f.id, f.channel, f.content, f.result, f.created_at AS createdAt,
+              l.id AS leadId, l.company_name AS companyName, l.contact_name AS contactName,
+              u.username AS operator
+       FROM lead_followups f
+       INNER JOIN leads l ON l.id = f.lead_id
+       LEFT JOIN users u ON u.id = f.user_id
+       WHERE ${whereParts.join(" AND ")}
+       ORDER BY f.created_at DESC
        LIMIT 300`,
-      params
+      { qLike: `%${q}%`, result }
     );
 
-    res.render("portal/shipments", {
-      title: "Shipments",
-      user,
-      q,
-      status,
-      pushStatus,
-      stats,
-      rows,
-      statusOptions: ["Pending", "InTransit", "Delivered", "Exception", "Returned"],
-      pushStatusOptions: ["NotPushed", "Pushed", "Failed"],
-    });
+    const [statsRows] = await db.query<any[]>(
+      `SELECT COALESCE(result, '未分类') AS resultName, COUNT(*) AS cnt
+       FROM lead_followups
+       GROUP BY COALESCE(result, '未分类')
+       ORDER BY cnt DESC`
+    );
+
+    res.render("portal/followups", { title: "Followups", user: req.user, q, result, rows, statsRows });
   });
 
-  // =========================
-  // Shipment Detail（订单详情）
-  // =========================
-  r.get("/shipments/:id", async (req, res) => {
-    const user = req.user as User;
-    const scope = buildLeadScopeWhere(user);
-
-    const id = req.params.id;
-
-    const [[shipment]] = await db.query<any[]>(
-      `SELECT s.id,
-              s.carrier,
-              s.waybill_no AS waybillNo,
-              s.push_status AS pushStatus,
-              s.logistics_status AS logisticsStatus,
-              s.receiver_name AS receiverName,
-              s.receiver_phone AS receiverPhone,
-              s.receiver_country AS receiverCountry,
-              s.receiver_address AS receiverAddress,
-              s.created_at AS createdAt,
-              s.updated_at AS updatedAt,
-              l.id AS leadId,
-              l.company_name AS companyName,
-              l.contact_name AS contactName,
-              l.email AS leadEmail,
-              l.phone AS leadPhone
-       FROM shipments s
-       INNER JOIN leads l ON l.id = s.lead_id
-       WHERE s.id = :id AND ${scope.whereSql}
-       LIMIT 1`,
-      { ...scope.params, id }
+  r.get("/analytics", async (req, res) => {
+    const [funnelRows] = await db.query<any[]>(
+      `SELECT workflow_stage AS stage, COUNT(*) AS cnt
+       FROM leads
+       GROUP BY workflow_stage`
     );
 
-    if (!shipment) return res.status(404).send("Shipment not found");
-
-    const [events] = await db.query<any[]>(
-      `SELECT id,
-              event_time AS eventTime,
-              status,
-              description,
-              location,
-              created_at AS createdAt
-       FROM shipment_events
-       WHERE shipment_id = :id
-       ORDER BY COALESCE(event_time, created_at) DESC
-       LIMIT 500`,
-      { id }
+    const [countryRows] = await db.query<any[]>(
+      `SELECT COALESCE(country, 'Unknown') AS country, COUNT(*) AS cnt
+       FROM leads
+       GROUP BY COALESCE(country, 'Unknown')
+       ORDER BY cnt DESC
+       LIMIT 10`
     );
 
-    res.render("portal/shipment_detail", {
-      title: `Shipment · ${shipment.waybillNo || shipment.id}`,
-      user,
-      shipment,
-      events,
-    });
+    const [shipmentRows] = await db.query<any[]>(
+      `SELECT logistics_status AS status, COUNT(*) AS cnt
+       FROM shipments
+       GROUP BY logistics_status`
+    );
+
+    res.render("portal/analytics", { title: "Analytics", user: req.user, funnelRows, countryRows, shipmentRows, stages: ALL_STAGES });
   });
 
-  // （可选）重推：先做成“标记为 Failed->NotPushed”，后面接圆通 API 再真正推送
-  r.post("/shipments/:id/repush", async (req, res) => {
-    const user = req.user as User;
-    const scope = buildLeadScopeWhere(user);
-    const id = req.params.id;
-
-    // 确保有权限（通过 leads scope）
-    const [[row]] = await db.query<any[]>(
-      `SELECT s.id
-       FROM shipments s
-       INNER JOIN leads l ON l.id = s.lead_id
-       WHERE s.id = :id AND ${scope.whereSql}
-       LIMIT 1`,
-      { ...scope.params, id }
-    );
-    if (!row) return res.status(404).send("Shipment not found");
-
-    await db.query(
-      `UPDATE shipments
-       SET push_status='NotPushed', updated_at=NOW()
-       WHERE id=:id`,
-      { id }
-    );
-
-    res.redirect(`/portal/shipments/${encodeURIComponent(id)}`);
-  });
-  
-    // =========================
-  // Shipments List（订单列表）
-  // =========================
   r.get("/shipments", async (req, res) => {
     const user = req.user as User;
     const scope = buildLeadScopeWhere(user);
-
     const q = String(req.query.q || "");
     const status = String(req.query.status || "");
     const pushStatus = String(req.query.pushStatus || "");
@@ -555,42 +527,29 @@ export function portalRoutes(): Router {
     );
 
     const stats = { total: 0, Pending: 0, InTransit: 0, Delivered: 0, Exception: 0, Returned: 0 };
-    for (const r of statRows) {
-      const key = String(r.s || "");
-      const cnt = Number(r.c || 0);
+    for (const row of statRows) {
+      const key = String(row.s || "");
+      const cnt = Number(row.c || 0);
       stats.total += cnt;
       if (key in stats) (stats as any)[key] = cnt;
     }
 
-    const whereParts: string[] = [`${scope.whereSql}`];
-    const params: any = { ...scope.params, q, qLike: `%${q}%`, status, pushStatus };
-
-    if (status) whereParts.push(`s.logistics_status = :status`);
-    if (pushStatus) whereParts.push(`s.push_status = :pushStatus`);
-    if (q) {
-      whereParts.push(
-        `(s.waybill_no LIKE :qLike OR s.receiver_name LIKE :qLike OR s.receiver_phone LIKE :qLike OR l.company_name LIKE :qLike)`
-      );
-    }
-
-    const whereSql = whereParts.join(" AND ");
+    const whereParts = [`${scope.whereSql}`];
+    if (status) whereParts.push("s.logistics_status = :status");
+    if (pushStatus) whereParts.push("s.push_status = :pushStatus");
+    if (q) whereParts.push("(s.waybill_no LIKE :qLike OR s.receiver_name LIKE :qLike OR s.receiver_phone LIKE :qLike OR l.company_name LIKE :qLike)");
 
     const [rows] = await db.query<any[]>(
-      `SELECT s.id,
-              s.waybill_no AS waybillNo,
-              s.push_status AS pushStatus,
-              s.logistics_status AS logisticsStatus,
-              s.receiver_name AS receiverName,
-              s.receiver_phone AS receiverPhone,
-              s.updated_at AS updatedAt,
-              l.id AS leadId,
-              l.company_name AS companyName
+      `SELECT s.id, s.waybill_no AS waybillNo, s.push_status AS pushStatus, s.logistics_status AS logisticsStatus,
+              s.receiver_name AS receiverName, s.receiver_phone AS receiverPhone, s.receiver_country AS receiverCountry,
+              s.receiver_address AS receiverAddress, s.updated_at AS updatedAt,
+              l.id AS leadId, l.company_name AS companyName
        FROM shipments s
        INNER JOIN leads l ON l.id = s.lead_id
-       WHERE ${whereSql}
+       WHERE ${whereParts.join(" AND ")}
        ORDER BY s.updated_at DESC
        LIMIT 300`,
-      params
+      { ...scope.params, qLike: `%${q}%`, status, pushStatus }
     );
 
     res.render("portal/shipments", {
@@ -606,29 +565,17 @@ export function portalRoutes(): Router {
     });
   });
 
-  // =========================
-  // Shipment Detail（订单详情）
-  // =========================
   r.get("/shipments/:id", async (req, res) => {
     const user = req.user as User;
     const scope = buildLeadScopeWhere(user);
-
     const id = req.params.id;
 
     const [[shipment]] = await db.query<any[]>(
-      `SELECT s.id,
-              s.carrier,
-              s.waybill_no AS waybillNo,
-              s.push_status AS pushStatus,
-              s.logistics_status AS logisticsStatus,
-              s.receiver_name AS receiverName,
-              s.receiver_phone AS receiverPhone,
-              s.receiver_country AS receiverCountry,
-              s.receiver_address AS receiverAddress,
-              s.created_at AS createdAt,
-              s.updated_at AS updatedAt,
-              l.id AS leadId,
-              l.company_name AS companyName
+      `SELECT s.id, s.carrier, s.waybill_no AS waybillNo, s.push_status AS pushStatus,
+              s.logistics_status AS logisticsStatus, s.receiver_name AS receiverName,
+              s.receiver_phone AS receiverPhone, s.receiver_country AS receiverCountry,
+              s.receiver_address AS receiverAddress, s.created_at AS createdAt, s.updated_at AS updatedAt,
+              l.id AS leadId, l.company_name AS companyName, l.contact_name AS contactName, l.email AS leadEmail, l.phone AS leadPhone
        FROM shipments s
        INNER JOIN leads l ON l.id = s.lead_id
        WHERE s.id = :id AND ${scope.whereSql}
@@ -647,15 +594,9 @@ export function portalRoutes(): Router {
       { id }
     );
 
-    res.render("portal/shipment_detail", {
-      title: `Shipment · ${shipment.waybillNo || shipment.id}`,
-      user,
-      shipment,
-      events,
-    });
+    res.render("portal/shipment_detail", { title: `Shipment · ${shipment.waybillNo || shipment.id}`, user, shipment, events });
   });
 
-  // 重推（MVP：先把状态打回 NotPushed）
   r.post("/shipments/:id/repush", async (req, res) => {
     const user = req.user as User;
     const scope = buildLeadScopeWhere(user);
@@ -672,11 +613,35 @@ export function portalRoutes(): Router {
     if (!row) return res.status(404).send("Shipment not found");
 
     await db.query(`UPDATE shipments SET push_status='NotPushed', updated_at=NOW() WHERE id=:id`, { id });
-
     res.redirect(`/portal/shipments/${encodeURIComponent(id)}`);
   });
 
+  r.use((err: any, req: any, res: any, _next: any) => {
+    const message = String(err?.message || "");
+    const code = String(err?.code || "");
+    const dbUnavailable =
+      code === "ECONNREFUSED" ||
+      code === "ETIMEDOUT" ||
+      code === "PROTOCOL_CONNECTION_LOST" ||
+      /connect|database|pool|connection/i.test(message);
 
+    if (dbUnavailable) {
+      if (req.method === "GET") {
+        return res.status(503).render("portal/db_unavailable", {
+          title: "Database Unavailable",
+          user: req.user,
+          requestPath: req.originalUrl,
+          dbHost: process.env.DB_HOST || "127.0.0.1",
+          dbPort: process.env.DB_PORT || "3306",
+          dbName: process.env.DB_NAME || "marketing",
+        });
+      }
+      return res.status(503).send("数据库暂不可用，请先启动 MySQL 并检查 .env 配置。");
+    }
+
+    console.error("[portal] unexpected error", err);
+    return res.status(500).send("系统异常，请稍后再试。");
+  });
 
   return r;
 }

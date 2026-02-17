@@ -1,0 +1,232 @@
+# 命令执行位置说明（本机 / GitHub / 服务器）
+
+## 1) 在你当前电脑执行（本机）
+用于查看分支和推送到 GitHub。
+
+> Windows 请使用真实磁盘路径（例如 `C:\othello\marketing`），不要使用 Linux 容器路径 `/workspace/marketing`。
+
+```bash
+# 进入本机项目目录（示例）
+cd C:\othello\marketing
+
+git remote -v
+git branch --show-current
+git fetch origin --prune
+git branch -r
+```
+
+## 2) GitHub 是代码仓库
+`git push` 的目标是 GitHub，不是业务服务器。
+
+## 3) 在业务服务器执行
+服务器要更新代码，需要登录服务器后在项目目录执行：
+
+```bash
+git pull origin main
+npm install
+npm run dev
+```
+
+## 4) 常见问题：`fatal: couldn't find remote ref work`
+如果执行 `git pull origin work` 报错，通常说明远端没有 `work` 分支。
+
+先检查远端分支：
+
+```bash
+git fetch origin --prune
+git branch -r
+```
+
+若只看到 `origin/main`，请使用：
+
+```bash
+git pull origin main
+```
+
+如果你确实要使用 `work` 分支，需要先在本地创建并推送：
+
+```bash
+git checkout -b work
+git push -u origin work
+```
+
+## 5) 常见问题：`git pull origin main` 显示 `Already up to date`
+这表示**GitHub 的 `main` 分支没有新的提交**，不是服务器故障。
+
+你需要先确认“新代码是否已经推到 GitHub 的 `main`”：
+
+```bash
+git fetch origin --prune
+git log --oneline --decorate --graph -n 8
+git log --oneline origin/main -n 8
+```
+
+### 场景 A：你的新提交在本地，但不在 `origin/main`
+先把提交推上去：
+
+```bash
+git push origin main
+```
+
+推送成功后，再到服务器执行：
+
+```bash
+git pull origin main
+```
+
+### 场景 B：你的新提交在本地 `work` 分支
+如果远端没有 `work`，先创建并推送：
+
+```bash
+git checkout work
+git push -u origin work
+```
+
+然后通过 PR 合并 `work -> main`（推荐），或者明确需要时直接：
+
+```bash
+git checkout main
+git merge work
+git push origin main
+```
+
+最后服务器再拉取：
+
+```bash
+git pull origin main
+```
+
+## 6) 常见问题：GitHub 页面看起来“没有更新”
+按下面顺序检查，避免只看错分支或看错提交：
+
+```bash
+# 1) 本地最新提交
+git log --oneline -n 3
+
+# 2) 远端 main 的最新提交
+git fetch origin --prune
+git log --oneline origin/main -n 3
+
+# 3) 对比本地分支与远端 main 是否一致
+git rev-parse --short HEAD
+git rev-parse --short origin/main
+```
+
+如果两个 commit id 不同，说明你的最新提交还没到 GitHub main：
+
+```bash
+# 当前就在 main 分支时
+git push origin main
+```
+
+如果你在 `work` 分支开发：
+
+```bash
+git push -u origin work
+# 然后在 GitHub 发起 PR: work -> main
+```
+
+> GitHub 网页默认常停留在 `main`。如果你刚推的是 `work`，页面切换到 `work` 才能看到更新。
+
+## 7) 你现在这条日志的结论（`Everything up-to-date`）
+当你看到：
+
+```bash
+git branch --show-current
+# main
+
+git log --oneline -n 3
+# f45f885 (HEAD -> main, origin/main, origin/HEAD) update project
+
+git push origin main
+# Everything up-to-date
+```
+
+含义是：你的本机 `main` 和 GitHub `main` 完全一致，当前**没有可推送的新提交**。
+
+### 下一步应该在哪输入命令
+就在你现在这个 PowerShell 路径输入：
+
+```bash
+PS C:\othello\marketing>
+```
+
+不是在 Codex 网页的“连接器”页面输入。
+
+### 一键检查是否真的有新提交（可直接复制）
+```bash
+git fetch origin --prune
+git status
+git branch --show-current
+git log --oneline -n 5
+git log --oneline origin/main -n 5
+git rev-parse --short HEAD
+git rev-parse --short origin/main
+```
+
+如果最后两个 commit id 一样，就说明 GitHub 没有新版本可拉。
+
+## 8) 常见报错：`pathspec 'work' did not match` / `src refspec work does not match any`
+你这两个报错通常同时出现，原因是：本地根本没有 `work` 分支（也没有任何提交指向它）。
+
+### 处理方式（两选一）
+
+#### 方案 A：只用 `main`（最简单）
+如果你不打算用 `work`，就一直在 `main` 开发并推送：
+
+```bash
+git checkout main
+git add .
+git commit -m "your change"
+git push origin main
+```
+
+#### 方案 B：要使用 `work`
+先从 `main` 创建 `work`，再提交并推送：
+
+```bash
+git checkout main
+git checkout -b work
+git add .
+git commit -m "your change"
+git push -u origin work
+```
+
+> 注意：如果没有新提交，`git push -u origin work` 也可能提示没有可推送内容。
+
+## 9) 常见报错：`M package-lock.json`
+`npm install` 后出现 `M package-lock.json`，表示锁文件被修改但还未提交。
+
+如果你不想带上这次修改：
+
+```bash
+git restore package-lock.json
+```
+
+如果你确认需要保留依赖变更：
+
+```bash
+git add package-lock.json
+git commit -m "chore: update lockfile"
+git push origin <current-branch>
+```
+
+## 10) 一键推送到 GitHub（Windows PowerShell）
+如果你只想执行“更新到 GitHub”并减少手动排错，可在项目目录运行：
+
+```powershell
+cd C:\othello\marketing
+powershell -ExecutionPolicy Bypass -File .\scripts\update-github.ps1 -Branch main
+```
+
+脚本会自动检查：
+- 当前目录是否是 Git 仓库
+- 工作区是否有未提交改动
+- 本地分支是否存在
+- 然后执行 `git push -u origin <branch>`
+
+如果你使用 `work` 分支：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\update-github.ps1 -Branch work
+```

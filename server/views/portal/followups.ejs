@@ -1,0 +1,45 @@
+<%- include("../partials/portal_header", { title, user }) %>
+
+<div style="display:grid;grid-template-columns:300px 1fr;gap:12px">
+  <div class="card">
+    <div style="font-weight:800;margin-bottom:8px">结果汇总</div>
+    <% statsRows.forEach(s=>{ %>
+      <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #e5e7eb">
+        <span><%= s.resultName %></span>
+        <strong><%= s.cnt %></strong>
+      </div>
+    <% }) %>
+  </div>
+
+  <div>
+    <div class="card" style="margin-bottom:12px">
+      <form method="get" action="/portal/followups" style="display:flex;gap:8px;flex-wrap:wrap">
+        <input name="q" value="<%= q %>" placeholder="搜索公司/内容" style="min-width:240px" />
+        <input name="result" value="<%= result %>" placeholder="结果" />
+        <button class="btn" type="submit">筛选</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <div style="font-weight:800;margin-bottom:10px">客户跟进汇总</div>
+      <table>
+        <thead><tr><th>时间</th><th>客户</th><th>渠道</th><th>内容</th><th>结果</th><th>记录人</th></tr></thead>
+        <tbody>
+          <% rows.forEach(r=>{ %>
+            <tr>
+              <td><%= new Date(r.createdAt).toLocaleString() %></td>
+              <td><a href="/portal/leads/<%= r.leadId %>"><%= r.companyName %></a><div class="text-muted"><%= r.contactName || '-' %></div></td>
+              <td><span class="pill"><%= r.channel %></span></td>
+              <td><%= r.content %></td>
+              <td><%= r.result || '-' %></td>
+              <td><%= r.operator || '-' %></td>
+            </tr>
+          <% }) %>
+          <% if(!rows.length){ %><tr><td colspan="6" class="text-muted">暂无跟进记录</td></tr><% } %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<%- include("../partials/portal_footer") %>
