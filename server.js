@@ -11,6 +11,7 @@ import shipmentTrackRoutes from "./routes/shipmentTrack.routes.js";
 
 import "./jobs/ytoTrack.job.js";
 
+import { requireAuth } from "./middlewares/auth.js";
 import { leadStatsMiddleware } from "./middlewares/leadStats.js";
 
 const app = express();
@@ -71,12 +72,7 @@ app.use(leadStatsMiddleware);
 
 app.use("/portal", portalRoutes());
 
-/**
- * 关键修复：
- * 1) 要加 /shipments 前缀
- * 2) 要执行 shipmentTrackRoutes()
- */
-app.use("/shipments", shipmentTrackRoutes());
+app.use("/shipments", requireAuth, shipmentTrackRoutes());
 
 // default redirect
 app.get("/", (req, res) => {

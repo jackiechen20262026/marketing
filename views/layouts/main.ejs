@@ -234,7 +234,6 @@
           const isFollowupsAll = p.startsWith('/portal/followups');
           const isBatches = p.startsWith('/portal/batches');
           const isTracks = p.startsWith('/shipments/tracks');
-          const isReports = p.startsWith('/portal/reports');
           const isUsers = p.startsWith('/portal/users');
         %>
 
@@ -330,7 +329,6 @@
         <% } %>
 
         <a class="<%= isTracks ? 'nav-active' : '' %>" href="/shipments/tracks?range=90">圆通轨迹</a>
-        <a class="<%= isReports ? 'nav-active' : '' %>" href="/portal/reports">报表</a>
         <a class="<%= p.startsWith('/portal/finance-ledger') ? 'nav-active' : '' %>" href="/portal/finance-ledger">财务流水</a>
       </div>
 
