@@ -1,0 +1,86 @@
+<div class="page">
+  <div class="page__header page__header--sticky">
+    <div>
+      <div class="h1"><%= mode==='create' ? t("新增用户") : (t("编辑用户") + " #" + (form.id || "")) %></div>
+      <div class="sub"><%= t("账号不可删除，只能停用") %></div>
+    </div>
+    <div class="page__actions">
+      <a class="btn btn--ghost" href="/portal/users"><%= t("返回列表") %></a>
+    </div>
+  </div>
+
+  <% if (error) { %><div class="alert alert--err"><%= error %></div><% } %>
+
+  <div class="card">
+    <div class="card__hd"><div class="card__title"><%= t("基本信息") %></div></div>
+
+    <form method="post" action="<%= mode==='create' ? '/portal/users/create' : ('/portal/users/' + form.id + '/update') %>" class="stack">
+      <div class="grid2">
+        <div class="field">
+          <div class="label">username *</div>
+          <% if (mode==='create') { %>
+            <input class="input" name="username" value="<%= form.username || '' %>" required>
+          <% } else { %>
+            <div class="input input--readonly mono"><%= form.username %></div>
+          <% } %>
+        </div>
+
+        <div class="field">
+          <div class="label"><%= t("姓名") %></div>
+          <input class="input" name="name" value="<%= form.name || '' %>">
+        </div>
+      </div>
+
+      <div class="grid2">
+        <div class="field">
+          <div class="label"><%= t("角色") %></div>
+          <select class="select" name="role">
+            <option value="staff" <%= (form.role==='staff'||!form.role) ? 'selected':'' %>>staff</option>
+            <option value="admin" <%= form.role==='admin' ? 'selected':'' %>>admin</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <div class="label"><%= t("状态") %></div>
+          <select class="select" name="status">
+            <option value="active" <%= (form.status==='active'||!form.status) ? 'selected':'' %>><%= t("启用") %></option>
+            <option value="disabled" <%= form.status==='disabled' ? 'selected':'' %>><%= t("停用") %></option>
+          </select>
+        </div>
+      </div>
+
+      <% if (mode==='create') { %>
+        <div class="field">
+          <div class="label"><%= t("初始密码") %> *</div>
+          <input class="input" type="password" name="password" required placeholder="<%= t('至少6位') %>">
+        </div>
+      <% } else { %>
+        <div class="field">
+          <div class="label"><%= t("重置密码") %></div>
+          <input class="input" type="password" name="new_password" placeholder="<%= t('留空不修改；至少6位') %>">
+        </div>
+      <% } %>
+
+      <button class="btn btn--primary" type="submit"><%= t("保存") %></button>
+    </form>
+  </div>
+</div>
+
+<style>
+  .page__header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:14px;}
+  .page__header--sticky{position:sticky;top:0;z-index:20;background:#f8fafc;padding:14px 0;border-bottom:1px solid #eef2f7;}
+  .page__actions{display:flex;gap:10px;flex-wrap:wrap;}
+  .h1{font-size:22px;font-weight:700;}
+  .sub{margin-top:6px;font-size:12px;color:#6b7280;}
+  .alert{margin:0 0 12px 0;padding:10px 12px;border-radius:14px;font-size:13px;border:1px solid #e5e7eb;background:#fff;}
+  .alert--err{border-color:#fecaca;background:#fef2f2;color:#991b1b;}
+
+  .stack{display:flex;flex-direction:column;gap:10px;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .input--readonly{display:flex;align-items:center;background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:10px 12px;color:#6b7280;}
+  .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;}
+
+  @media (max-width: 980px){
+    .grid2{grid-template-columns:1fr;}
+  }
+</style>

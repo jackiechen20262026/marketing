@@ -1,0 +1,181 @@
+<div style="padding:24px 28px 40px;">
+  <style>
+    .tl-head{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-end;
+      gap:16px;
+      margin-bottom:16px;
+      flex-wrap:wrap;
+    }
+
+    .tl-title{
+      margin:0;
+      font-size:20px;
+      font-weight:600;
+      color:#0f172a;
+    }
+
+    .tl-sub{
+      margin-top:6px;
+      color:#64748b;
+      font-size:13px;
+      font-weight:400;
+    }
+
+    .tl-form{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+
+    .tl-input{
+      height:40px;
+      border:1px solid #e2e8f0;
+      border-radius:12px;
+      padding:0 12px;
+      font-size:14px;
+      color:#0f172a;
+      background:#fff;
+      outline:none;
+    }
+
+    .tl-btn{
+      height:40px;
+      padding:0 16px;
+      border:none;
+      border-radius:12px;
+      background:#0f172a;
+      color:#fff;
+      cursor:pointer;
+      font-size:14px;
+      font-weight:600;
+      text-decoration:none;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+    }
+
+    .tl-btn.ghost{
+      background:#fff;
+      color:#0f172a;
+      border:1px solid #dbe3ee;
+      font-weight:500;
+    }
+
+    .tl-card{
+      background:#fff;
+      border:1px solid #e5e7eb;
+      border-radius:20px;
+      overflow:hidden;
+    }
+
+    .tl-table{
+      width:100%;
+      border-collapse:collapse;
+      table-layout:fixed;
+    }
+
+    .tl-table thead th{
+      text-align:left;
+      padding:16px 18px;
+      border-bottom:1px solid #eef2f7;
+      color:#64748b;
+      font-size:13px;
+      font-weight:600;
+    }
+
+    .tl-table tbody td{
+      padding:16px 18px;
+      border-bottom:1px solid #f1f5f9;
+      vertical-align:top;
+      color:#0f172a;
+      font-size:14px;
+      font-weight:400;
+    }
+
+    .tl-table tbody tr:last-child td{
+      border-bottom:none;
+    }
+
+    .tl-mono{
+      font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+      font-weight:500;
+    }
+
+    .tl-mut{
+      color:#64748b;
+      font-size:13px;
+    }
+
+    .tl-pre{
+      white-space:pre-wrap;
+      background:#f8fafc;
+      border:1px solid #eef2f7;
+      border-radius:12px;
+      padding:12px;
+      margin:8px 0 0;
+      font-size:12px;
+      line-height:1.55;
+      color:#334155;
+      overflow:auto;
+      max-height:360px;
+      font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    }
+  </style>
+
+  <div class="tl-head">
+    <div>
+      <h2 class="tl-title">轨迹更新日志</h2>
+      <div class="tl-sub">用于确认手动刷新 / 定时任务是否真正调用了圆通 API，并查看本次解析结果与原始返回。</div>
+    </div>
+
+    <form method="GET" action="/shipments/track-logs" class="tl-form">
+      <input class="tl-input" name="shipmentId" placeholder="shipment_id（可选）" value="<%= shipmentId %>" style="width:170px;" />
+      <input class="tl-input" name="limit" placeholder="limit" value="<%= limit %>" style="width:100px;" />
+      <button class="tl-btn" type="submit">筛选</button>
+      <a class="tl-btn ghost" href="/shipments/track-logs">重置</a>
+    </form>
+  </div>
+
+  <div class="tl-card">
+    <table class="tl-table">
+      <thead>
+        <tr>
+          <th style="width:70px;">ID</th>
+          <th style="width:110px;">shipment_id</th>
+          <th style="width:180px;">event_type</th>
+          <th style="width:130px;">event_status</th>
+          <th>message</th>
+          <th style="width:180px;">created_at</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <% if (!rows || !rows.length) { %>
+          <tr><td colspan="6" class="tl-mut">暂无日志</td></tr>
+        <% } %>
+
+        <% (rows || []).forEach(r => { %>
+          <tr>
+            <td class="tl-mono"><%= r.id %></td>
+            <td class="tl-mono"><%= r.shipment_id %></td>
+            <td class="tl-mono"><%= r.event_type %></td>
+            <td class="tl-mono"><%= r.event_status || '-' %></td>
+            <td>
+              <div><%= r.event_message || '-' %></div>
+              <% if (r.raw_payload) { %>
+                <details style="margin-top:6px;">
+                  <summary class="tl-mut" style="cursor:pointer;">查看 raw_payload</summary>
+                  <pre class="tl-pre"><%= r.raw_payload %></pre>
+                </details>
+              <% } %>
+            </td>
+            <td class="tl-mono"><%= r.created_at ? new Date(r.created_at).toLocaleString() : '-' %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>

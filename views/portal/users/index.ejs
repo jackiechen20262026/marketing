@@ -1,0 +1,140 @@
+<%
+// locals: title, active, user, success, error, filters, rows, pagination
+const f = filters || { keyword:'', role:'', status:'' };
+%>
+
+<div class="page-head">
+  <div>
+    <h1 class="page-title">Users</h1>
+    <div class="page-sub">Manage accounts · Admin/User · Active/Disabled</div>
+  </div>
+  <div class="page-actions">
+    <a class="btn" href="/portal/users/new">New</a>
+  </div>
+</div>
+
+<% if (success) { %>
+  <div class="alert alert-success"><%= success %></div>
+<% } %>
+<% if (error) { %>
+  <div class="alert alert-danger"><%= error %></div>
+<% } %>
+
+<div class="card">
+  <div class="card-head">
+    <div class="card-title">Filters</div>
+  </div>
+
+  <form method="get" action="/portal/users" class="form-grid">
+    <div class="span-2">
+      <div class="label">Keyword</div>
+      <input name="keyword" value="<%= f.keyword %>" placeholder="username / name" />
+    </div>
+
+    <div>
+      <div class="label">Role</div>
+      <select name="role">
+        <option value="" <%= !f.role ? "selected" : "" %>>All</option>
+        <option value="admin" <%= f.role==="admin" ? "selected" : "" %>>Admin</option>
+        <option value="user" <%= f.role==="user" ? "selected" : "" %>>User</option>
+      </select>
+    </div>
+
+    <div>
+      <div class="label">Status</div>
+      <select name="status">
+        <option value="" <%= !f.status ? "selected" : "" %>>All</option>
+        <option value="active" <%= f.status==="active" ? "selected" : "" %>>Active</option>
+        <option value="disabled" <%= f.status==="disabled" ? "selected" : "" %>>Disabled</option>
+      </select>
+    </div>
+
+    <div class="span-4" style="display:flex; gap:10px; align-items:end;">
+      <button class="btn" type="submit">Apply</button>
+      <a class="btn btn-outline" href="/portal/users">Reset</a>
+      <div class="muted" style="margin-left:auto;">
+        Page <%= pagination.page %> / <%= pagination.totalPages %> · Total <%= pagination.total %>
+      </div>
+    </div>
+  </form>
+
+  <div class="divider"></div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:72px;">ID</th>
+          <th>Username</th>
+          <th>Name</th>
+          <th style="width:120px;">Role</th>
+          <th style="width:140px;">Status</th>
+          <th style="width:190px;">Updated</th>
+          <th style="width:280px;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% rows.forEach(function(u){ %>
+          <tr>
+            <td class="mono"><%= u.id %></td>
+            <td><%= u.username %></td>
+            <td><%= u.name || "-" %></td>
+            <td><span class="tag"><%= u.role_ui %></span></td>
+            <td>
+              <% if (u.status_ui === "Active") { %>
+                <span class="tag" style="border-color:#bbf7d0;background:#f0fdf4;color:#166534;">Active</span>
+              <% } else { %>
+                <span class="tag" style="border-color:#fecaca;background:#fef2f2;color:#991b1b;">Disabled</span>
+              <% } %>
+            </td>
+            <td class="muted"><%= u.updated_at ? u.updated_at : "-" %></td>
+            <td>
+              <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                <a class="btn btn-outline" href="/portal/users/<%= u.id %>/edit">Edit</a>
+
+                <!-- Reset password: 跳编辑页 -->
+                <a class="btn btn-muted" href="/portal/users/<%= u.id %>/edit">Reset Password</a>
+
+                <!-- Enable/Disable -->
+                <form
+                  method="post"
+                  action="/portal/users/<%= u.id %>/toggle-status?keyword=<%= encodeURIComponent(f.keyword||'') %>&role=<%= encodeURIComponent(f.role||'') %>&status=<%= encodeURIComponent(f.status||'') %>&page=<%= pagination.page %>"
+                  onsubmit="return confirm('Change status for <%= u.username %>?')"
+                  style="margin:0;"
+                >
+                  <% if (Number(u.status) === 1) { %>
+                    <button class="btn btn-danger" type="submit">Disable</button>
+                  <% } else { %>
+                    <button class="btn" type="submit">Enable</button>
+                  <% } %>
+                </form>
+              </div>
+            </td>
+          </tr>
+        <% }) %>
+
+        <% if (!rows.length) { %>
+          <tr><td colspan="7" class="muted">No data</td></tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-top:14px;">
+    <%
+      const baseQs = [];
+      if (f.keyword) baseQs.push("keyword="+encodeURIComponent(f.keyword));
+      if (f.role) baseQs.push("role="+encodeURIComponent(f.role));
+      if (f.status) baseQs.push("status="+encodeURIComponent(f.status));
+      const base = "/portal/users" + (baseQs.length ? ("?"+baseQs.join("&")) : "");
+      const prev = pagination.page > 1 ? (base + (baseQs.length ? "&" : "?") + "page=" + (pagination.page-1)) : null;
+      const next = pagination.page < pagination.totalPages ? (base + (baseQs.length ? "&" : "?") + "page=" + (pagination.page+1)) : null;
+    %>
+
+    <div class="muted">Showing page <%= pagination.page %></div>
+    <div style="display:flex; gap:10px;">
+      <a class="btn btn-outline <%= !prev ? 'btn-muted' : '' %>" href="<%= prev || '#' %>" style="<%= !prev ? 'pointer-events:none;opacity:.6;' : '' %>">Prev</a>
+      <a class="btn btn-outline <%= !next ? 'btn-muted' : '' %>" href="<%= next || '#' %>" style="<%= !next ? 'pointer-events:none;opacity:.6;' : '' %>">Next</a>
+    </div>
+  </div>
+</div>

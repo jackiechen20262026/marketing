@@ -1,0 +1,422 @@
+<%
+// views/portal/lead_pool.ejs (Card CRM版)
+// 卡片式列表 + 支持勾选批量操作
+const rowsSafe = rows || [];
+const pg = pagination || { page: 1, pageSize: 20, total: 0, totalPages: 1 };
+const keywordSafe = keyword || '';
+const stageSafe = stage || '';
+const levelSafe = level || '';
+const qsBase = `keyword=${encodeURIComponent(keywordSafe || '')}&stage=${encodeURIComponent(stageSafe || '')}&level=${encodeURIComponent(levelSafe || '')}`;
+function fmtDate(v){
+  if(!v) return '';
+  const d = new Date(v);
+  if(Number.isNaN(d.getTime())) return '';
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+function safeText(v){
+  if(v==null) return '-';
+  const s = String(v).trim();
+  return s ? s : '-';
+}
+%>
+
+<div class="page">
+  <div class="page__header page__header--sticky">
+    <div class="titlebox">
+      <div class="h1"><%= t("线索池") %></div>
+      <div class="sub"><%= t("线索总览（可筛选、批量操作）") %></div>
+    </div>
+
+    <div class="page__actions">
+      <a class="btn btn--primary" href="/portal/leads/new"><%= t("手动添加") %></a>
+      <a class="btn btn--ghost" href="/portal/leads/import"><%= t("批量导入") %></a>
+
+      <a class="btn btn--ghost" href="/portal/leads/demand"><%= t("有需求客人") %></a>
+      <a class="btn btn--ghost" href="/portal/leads/partner-intent"><%= t("合作意向客人") %></a>
+      <a class="btn btn--ghost" href="/portal/leads/sample-sent"><%= t("已寄样品") %></a>
+
+      <a class="btn btn--ghost" href="/portal/plans"><%= t("总计划") %></a>
+      <a class="btn btn--ghost" href="/portal/followups"><%= t("跟进列表") %></a>
+    </div>
+  </div>
+
+  <% if (success) { %><div class="alert alert--ok"><%= success %></div><% } %>
+  <% if (error) { %><div class="alert alert--err"><%= error %></div><% } %>
+
+  <div class="card">
+    <div class="card__hd">
+      <div class="card__title"><%= t("筛选") %></div>
+    </div>
+
+    <form class="filters" method="get" action="/portal/lead-pool">
+      <input class="input" name="keyword" value="<%= keywordSafe %>" placeholder="<%= t("搜索：公司名 / 收件人 / 电话 / VAT / 统一号 / 类目") %>">
+
+      <select class="input" name="stage">
+        <option value=""><%= t("全部阶段") %></option>
+        <% (STAGES||[]).forEach(s => { %>
+          <option value="<%= s %>" <%= stageSafe===s ? 'selected':'' %>><%= s %></option>
+        <% }) %>
+      </select>
+
+      <select class="input" name="level">
+        <option value=""><%= t("全部等级") %></option>
+        <% (LEVELS||[]).forEach(lv => { %>
+          <option value="<%= lv %>" <%= levelSafe===lv ? 'selected':'' %>><%= lv %></option>
+        <% }) %>
+      </select>
+
+      <button class="btn btn--primary" type="submit"><%= t("查询") %></button>
+      <a class="btn btn--ghost" href="/portal/lead-pool"><%= t("清空") %></a>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="card__hd">
+      <div class="card__title"><%= t("列表") %></div>
+      <div class="muted small"><%= t("共") %> <%= pg.total %> <%= t("条") %></div>
+    </div>
+
+    <!-- ✅ 批量操作（卡片式） -->
+    <div class="bulkbar">
+      <label class="bulkbar__left">
+        <input type="checkbox" id="chkAll" onclick="toggleAll(this)">
+        <span class="muted small"><%= t("全选") %></span>
+      </label>
+
+      <form id="bulkDisableForm" method="post" action="/portal/leads/bulk-disable" class="bulkbar__form">
+        <input type="hidden" name="ids" id="bulkDisableIds" value="">
+        <button type="submit" class="btn btn--ghost" onclick="return submitBulk('bulkDisableIds')">
+          <%= t("批量停用") %>
+        </button>
+      </form>
+
+      <form id="bulkStageForm" method="post" action="/portal/leads/bulk-stage" class="bulkbar__stage">
+        <input type="hidden" name="ids" id="bulkStageIds" value="">
+        <select class="input input--mini" name="to_stage" required>
+          <option value="" disabled selected><%= t("批量改阶段") %></option>
+          <% (STAGES||[]).forEach(s => { %>
+            <option value="<%= s %>"><%= s %></option>
+          <% }) %>
+        </select>
+        <input class="input input--mini" name="remark" placeholder="<%= t("备注(可选)") %>">
+        <button type="submit" class="btn btn--ghost" onclick="return submitBulk('bulkStageIds')">
+          <%= t("应用") %>
+        </button>
+      </form>
+
+      <div class="bulkbar__hint muted small"><%= t("提示：先勾选再批量操作") %></div>
+    </div>
+
+    <div class="cards">
+      <% if (!rowsSafe.length) { %>
+        <div class="empty muted"><%= t("暂无数据") %></div>
+      <% } %>
+
+      <% rowsSafe.forEach(r => { 
+        const contact = r.contact_name || r.receiver_name || '-';
+        const phone = r.phone || r.receiver_mobile || '-';
+        const wechat = r.wechat || '-';
+        const updated = fmtDate(r.updated_at || r.created_at);
+      %>
+        <div class="leadCard">
+          <div class="leadCard__top">
+            <div class="leadLeft">
+              <div class="leadRow">
+                <label class="chkWrap" title="<%= t('勾选') %>">
+                  <input type="checkbox" class="rowChk" value="<%= r.id %>">
+                </label>
+
+                <span class="leadId">#<%= r.id %></span>
+
+                <div class="leadName" title="<%= r.company_name || '-' %>">
+                  <%= r.company_name || '-' %>
+                </div>
+              </div>
+
+              <div class="leadMeta">
+                <span class="metaItem">类目：<span class="metaValue"><%= safeText(r.category) %></span></span>
+                <span class="metaItem">阶段：<span class="tag"><%= safeText(r.workflow_stage) %></span></span>
+                <span class="metaItem">等级：<span class="tag tag--soft"><%= safeText(r.customer_level) %></span></span>
+                <span class="metaItem muted small">更新时间：<span class="mono"><%= updated %></span></span>
+              </div>
+            </div>
+
+            <div class="leadRight">
+              <a class="opMain" href="/portal/leads/<%= r.id %>"><%= t("详情") %></a>
+              <a class="opGhost" href="/portal/leads/<%= r.id %>/plans"><%= t("计划") %></a>
+              <a class="opGhost" href="/portal/leads/<%= r.id %>/visit"><%= t("拜访") %></a>
+              <form method="post" action="/portal/leads/<%= r.id %>/priority-send" class="inline">
+                <input type="hidden" name="back" value="<%= currentPath %>">
+                <button type="submit" class="opGhost opGhostBtn">优先发件</button>
+              </form>
+            </div>
+          </div>
+
+          <div class="leadCard__body">
+            <div class="block">
+              <div class="block__hd">
+                <div class="block__title"><%= t("关键信息") %></div>
+              </div>
+
+              <div class="kv">
+                <div class="kv__row">
+                  <div class="kv__k muted small"><%= t("联系人") %></div>
+                  <div class="kv__v"><%= contact %></div>
+                </div>
+                <div class="kv__row">
+                  <div class="kv__k muted small"><%= t("电话") %></div>
+                  <div class="kv__v mono"><%= phone %></div>
+                </div>
+                <div class="kv__row">
+                  <div class="kv__k muted small"><%= t("微信") %></div>
+                  <div class="kv__v mono"><%= wechat %></div>
+                </div>
+                <div class="kv__row">
+                  <div class="kv__k muted small"><%= t("产品类目") %></div>
+                  <div class="kv__v"><%= safeText(r.category) %></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="block stats">
+              <div class="block__hd">
+                <div class="block__title"><%= t("数据") %></div>
+              </div>
+
+              <div class="statsGrid">
+                <div class="stat">
+                  <div class="stat__k muted small"><%= t("发信") %></div>
+                  <div class="stat__v mono"><%= Number(r.mail_count || 0) %></div>
+                </div>
+                <div class="stat">
+                  <div class="stat__k muted small"><%= t("拜访") %></div>
+                  <div class="stat__v mono"><%= Number(r.visit_count || 0) %></div>
+                </div>
+                <div class="stat">
+                  <div class="stat__k muted small"><%= t("跟进") %></div>
+                  <div class="stat__v mono"><%= Number(r.followup_count || 0) %></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+
+    <div class="pager">
+      <div class="muted small">
+        <%= t("第") %> <%= pg.page %> / <%= pg.totalPages %> <%= t("页") %>
+      </div>
+      <div class="pager__actions">
+        <a class="btn btn--ghost <%= pg.page<=1 ? 'btn--disabled' : '' %>"
+           href="/portal/lead-pool?<%= qsBase %>&page=<%= Math.max(1, pg.page-1) %>">
+          <%= t("上一页") %>
+        </a>
+        <a class="btn btn--ghost <%= pg.page>=pg.totalPages ? 'btn--disabled' : '' %>"
+           href="/portal/lead-pool?<%= qsBase %>&page=<%= Math.min(pg.totalPages, pg.page+1) %>">
+          <%= t("下一页") %>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function getSelectedIds(){
+    const arr = [];
+    document.querySelectorAll('.rowChk').forEach(chk=>{
+      if(chk.checked) arr.push(chk.value);
+    });
+    return arr;
+  }
+
+  function toggleAll(master){
+    const checked = !!master.checked;
+    document.querySelectorAll('.rowChk').forEach(chk=> chk.checked = checked);
+  }
+
+  function submitBulk(hiddenId){
+    const ids = getSelectedIds();
+    if(!ids.length){
+      alert('请先勾选线索');
+      return false;
+    }
+    document.getElementById(hiddenId).value = ids.join(',');
+    return true;
+  }
+</script>
+
+<style>
+  /* ✅ 极简 CRM 卡片风（不写 :root，避免覆盖全局） */
+
+  .page__header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:14px;}
+  .page__header--sticky{position:sticky;top:0;z-index:20;background:var(--bg,#f8fafc);padding:14px 0;border-bottom:1px solid rgba(0,0,0,.06);}
+  .titlebox{min-width:0;}
+  .h1{font-size:18px;font-weight:500;color:var(--text,#111827);letter-spacing:-.2px;}
+  .sub{margin-top:6px;font-size:12px;color:var(--muted,#6b7280);}
+  .page__actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+
+  .small{font-size:12px;}
+  .muted{color:var(--muted,#6b7280);}
+  .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;}
+  .btn{display:inline-flex;align-items:center;justify-content:center;height:38px;padding:0 14px;border-radius:10px;border:1px solid rgba(0,0,0,.10);background:#fff;color:#111827;text-decoration:none;font-size:13px;font-weight:400;cursor:pointer;}
+  .btn--primary{border-color:#111827;background:#111827;color:#fff;font-weight:500;}
+  .btn--ghost{background:#fff;}
+  .btn--disabled{pointer-events:none;opacity:.45;}
+
+  .alert{margin:0 0 12px 0;padding:10px 12px;border-radius:12px;font-size:13px;border:1px solid rgba(0,0,0,.08);background:#fff;}
+  .alert--ok{border-color:#bbf7d0;background:#f0fdf4;color:#166534;}
+  .alert--err{border-color:#fecaca;background:#fef2f2;color:#991b1b;}
+
+  .card{background:#fff;border:1px solid rgba(0,0,0,.06);border-radius:12px;margin:0 0 12px 0;box-shadow:0 1px 2px rgba(16,24,40,0.04);}
+  .card__hd{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid rgba(0,0,0,.06);}
+  .card__title{font-weight:500;color:var(--text,#111827);}
+
+  .filters{padding:12px 14px;display:grid;grid-template-columns:1fr 200px 200px 120px 120px;gap:10px;align-items:center;}
+  .input{height:38px;border:1px solid rgba(0,0,0,.10);border-radius:10px;padding:0 12px;background:#fff;font-size:13px;outline:none;}
+  .input:focus{border-color:rgba(0,0,0,.25);box-shadow:0 0 0 3px rgba(148,163,184,0.15);}
+  .input--mini{height:32px;border-radius:10px;font-size:12px;padding:0 10px;}
+
+  .bulkbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid rgba(0,0,0,.06);background:#fbfcfe;}
+  .bulkbar__left{display:inline-flex;gap:8px;align-items:center;}
+  .bulkbar__form{margin:0;}
+  .bulkbar__stage{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0;}
+  .bulkbar__hint{margin-left:auto;}
+
+  /* ✅ 卡片列表 */
+  .cards{
+    padding:14px;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+  }
+
+  .leadCard{
+    border:1px solid rgba(0,0,0,.08);
+    border-radius:14px;
+    background:#fff;
+    overflow:hidden;
+  }
+  .leadCard:hover{
+    box-shadow:0 10px 30px rgba(15,23,42,.06);
+    border-color:rgba(0,0,0,.12);
+  }
+
+  .leadCard__top{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:14px;
+    padding:14px 14px 12px 14px;
+    border-bottom:1px solid rgba(0,0,0,.06);
+    background:#fbfcfe;
+  }
+
+  .leadLeft{min-width:0;display:flex;flex-direction:column;gap:8px;}
+  .leadRow{display:flex;gap:10px;align-items:center;min-width:0;}
+  .chkWrap{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:10px;border:1px solid rgba(0,0,0,.10);background:#fff;flex:0 0 auto;}
+  .chkWrap input{width:14px;height:14px;}
+  .leadId{
+    display:inline-flex;align-items:center;flex:0 0 auto;
+    height:22px;padding:0 10px;border-radius:999px;
+    border:1px solid rgba(0,0,0,.10);background:#fff;
+    color:#334155;font-size:12px;font-weight:500;
+  }
+  .leadName{
+    font-size:14px;font-weight:600;color:#0f172a;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+
+  .leadMeta{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+  .metaItem{font-size:12px;color:#475569;}
+  .metaValue{font-weight:500;color:#0f172a;}
+
+  .tag{
+    display:inline-flex;align-items:center;
+    padding:5px 10px;border-radius:999px;
+    background:#f3f4f6;color:#334155;font-size:12px;font-weight:500;
+    border:1px solid rgba(0,0,0,.08);
+    white-space:nowrap;
+  }
+  .tag--soft{background:#f8fafc;color:#334155;border-color:rgba(0,0,0,.08);}
+
+  .leadRight{display:flex;gap:10px;align-items:center;flex-wrap:wrap;white-space:nowrap;}
+  .opMain{
+    display:inline-flex;align-items:center;justify-content:center;
+    height:34px;padding:0 12px;border-radius:10px;
+    border:1px solid #111827;background:#111827;color:#fff;
+    font-size:13px;font-weight:500;text-decoration:none;
+  }
+  .opGhost{
+    display:inline-flex;align-items:center;justify-content:center;
+    height:34px;padding:0 12px;border-radius:10px;
+    border:1px solid rgba(0,0,0,.10);background:#fff;color:#0f172a;
+    font-size:13px;font-weight:400;text-decoration:none;
+  }
+  .opGhost:hover{border-color:rgba(0,0,0,.18);background:#fbfcfe;}
+  .opGhostBtn{border:none;background:#fff;cursor:pointer;}
+
+  .leadCard__body{
+    padding:14px;
+    display:grid;
+    grid-template-columns: 1.2fr 320px;
+    gap:12px;
+    align-items:start;
+  }
+
+  .block{
+    border:1px solid rgba(0,0,0,.06);
+    border-radius:12px;
+    padding:12px;
+    background:#fff;
+  }
+  .block__hd{
+    display:flex;
+    justify-content:space-between;
+    gap:10px;
+    align-items:baseline;
+    margin-bottom:10px;
+  }
+  .block__title{
+    font-size:13px;
+    font-weight:600;
+    color:#0f172a;
+  }
+
+  .kv{display:flex;flex-direction:column;gap:10px;}
+  .kv__row{display:flex;justify-content:space-between;gap:10px;align-items:center;}
+  .kv__k{flex:0 0 64px;}
+  .kv__v{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#0f172a;font-size:13px;font-weight:500;}
+
+  .statsGrid{
+    display:grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap:10px;
+  }
+  .stat{
+    border:1px solid rgba(0,0,0,.06);
+    border-radius:12px;
+    padding:10px 10px;
+    background:#fbfcfe;
+  }
+  .stat__k{font-size:12px;}
+  .stat__v{font-size:16px;font-weight:600;color:#0f172a;margin-top:2px;}
+
+  .empty{padding:14px;color:var(--muted,#6b7280);}
+
+  .pager{display:flex;justify-content:space-between;align-items:center;margin:12px 14px 14px 14px;}
+  .pager__actions{display:flex;gap:10px;}
+
+  @media (max-width: 1100px){
+    .leadCard__body{grid-template-columns:1fr;}
+  }
+  @media (max-width: 980px){
+    .filters{grid-template-columns:1fr;}
+    .leadCard__top{flex-direction:column;align-items:flex-start;}
+    .leadRight{width:100%;}
+    .bulkbar__hint{margin-left:0;}
+  }
+</style>

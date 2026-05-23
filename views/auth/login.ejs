@@ -1,0 +1,38 @@
+<div class="page page--center">
+  <div class="card card--auth">
+    <div class="h1"><%= t("登录") %></div>
+    <div class="sub"><%= t("售后联盟市场推广管理系统") %></div>
+
+    <% if (error) { %>
+      <div class="alert alert--err"><%= error %></div>
+    <% } %>
+    <% if (success) { %>
+      <div class="alert alert--ok"><%= success %></div>
+    <% } %>
+
+    <form method="post" action="/login" class="stack">
+      <div class="field">
+        <div class="label"><%= t("账号") %></div>
+        <input class="input" name="username" autocomplete="username" required>
+      </div>
+
+      <div class="field">
+        <div class="label"><%= t("密码") %></div>
+        <input class="input" type="password" name="password" autocomplete="current-password" required>
+      </div>
+
+      <button class="btn btn--primary" type="submit"><%= t("登录") %></button>
+    </form>
+  </div>
+</div>
+
+<style>
+  .page--center{min-height: calc(100vh - 80px); display:flex; align-items:center; justify-content:center;}
+  .card--auth{width: 420px; max-width: 92vw; padding: 18px;}
+  .h1{font-size:22px;font-weight:700;margin-bottom:6px;}
+  .sub{font-size:12px;color:#6b7280;margin-bottom:12px;}
+  .stack{display:flex;flex-direction:column;gap:10px;}
+  .alert{margin:0 0 12px 0;padding:10px 12px;border-radius:14px;font-size:13px;border:1px solid #e5e7eb;background:#fff;}
+  .alert--ok{border-color:#bbf7d0;background:#f0fdf4;color:#166534;}
+  .alert--err{border-color:#fecaca;background:#fef2f2;color:#991b1b;}
+</style>

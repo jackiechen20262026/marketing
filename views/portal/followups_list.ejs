@@ -1,0 +1,304 @@
+<%
+// views/portal/followups_list.ejs (Card CRM版 / 极简风)
+// 目标：整体风格与 lead_demand 一致（企业CRM轻量、卡片化、字体 400/500/600）
+// 功能不变：筛选 + 时间线卡片（不可删除）
+
+const rowsSafe = rows || [];
+const pg = pagination || { page: 1, pageSize: 20, total: 0, totalPages: 1 };
+
+const keywordSafe = keyword || '';
+const typeSafe = type || '';
+const needAnalysisSafe = (needAnalysis === undefined || needAnalysis === null) ? '' : String(needAnalysis);
+
+const qsBase =
+  `keyword=${encodeURIComponent(keywordSafe||'')}` +
+  `&type=${encodeURIComponent(typeSafe||'')}` +
+  `&need_analysis=${encodeURIComponent(needAnalysisSafe||'')}`;
+
+const TYPE_NAME = {
+  call: "电话",
+  wechat: "微信",
+  email: "邮件",
+  visit: "拜访",
+  other: "其他",
+};
+
+function fmtDate(v){
+  if(!v) return '';
+  const d = new Date(v);
+  if(Number.isNaN(d.getTime())) return '';
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+function safeText(v){
+  if(v==null) return '-';
+  const s = String(v).trim();
+  return s ? s : '-';
+}
+function typeLabel(v){
+  const k = String(v||'').trim();
+  return TYPE_NAME[k] || k || '-';
+}
+%>
+
+<div class="page">
+  <div class="page__header page__header--sticky">
+    <div class="titlebox">
+      <div class="h1"><%= t("跟进列表") %></div>
+      <div class="sub"><%= t("所有线索的跟进记录汇总（不可删除）") %></div>
+    </div>
+    <div class="page__actions">
+      <a class="btn btn--ghost" href="/portal/lead-pool"><%= t("返回线索池") %></a>
+    </div>
+  </div>
+
+  <% if (success) { %><div class="alert alert--ok"><%= success %></div><% } %>
+  <% if (error) { %><div class="alert alert--err"><%= error %></div><% } %>
+
+  <div class="card">
+    <div class="card__hd">
+      <div class="card__title"><%= t("筛选") %></div>
+      <div class="muted small"><%= t("共") %> <%= pg.total %> <%= t("条") %></div>
+    </div>
+
+    <form class="filters" method="get" action="/portal/followups">
+      <input class="input" name="keyword" value="<%= keywordSafe %>" placeholder="<%= t("搜索：公司/微信/电话/内容") %>">
+
+      <select class="input" name="type">
+        <option value=""><%= t("全部类型") %></option>
+        <% (types||[]).forEach(x => { %>
+          <option value="<%= x.key %>" <%= x.key===typeSafe?'selected':'' %>><%= x.name %></option>
+        <% }) %>
+      </select>
+
+      <select class="input" name="need_analysis">
+        <option value=""><%= t("是否需要分析：全部") %></option>
+        <option value="1" <%= needAnalysisSafe==='1'?'selected':'' %>><%= t("需要分析") %></option>
+        <option value="0" <%= needAnalysisSafe==='0'?'selected':'' %>><%= t("不需要分析") %></option>
+      </select>
+
+      <button class="btn btn--primary" type="submit"><%= t("查询") %></button>
+      <a class="btn btn--ghost" href="/portal/followups"><%= t("清空") %></a>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="card__hd">
+      <div class="card__title"><%= t("记录") %></div>
+      <div class="muted small"><%= t("第") %> <%= pg.page %> / <%= pg.totalPages %> <%= t("页") %></div>
+    </div>
+
+    <div class="listPad">
+      <% if (!rowsSafe.length) { %>
+        <div class="empty muted"><%= t("暂无记录") %></div>
+      <% } else { %>
+        <div class="timeline">
+          <% rowsSafe.forEach(f => { %>
+            <div class="tlCard">
+              <div class="tlTop">
+                <div class="tlLeft">
+                  <div class="tlCompany">
+                    <a class="link strong" href="/portal/leads/<%= f.lead_id %>">
+                      <%= f.company_name || ('#'+f.lead_id) %>
+                    </a>
+                  </div>
+
+                  <div class="tlMeta">
+                    <span class="tag"><%= typeLabel(f.followup_type) %></span>
+                    <span class="metaItem mono">#<%= f.id %></span>
+                    <span class="metaItem mono"><%= fmtDate(f.created_at) %></span>
+                    <% if (f.created_by_name) { %>
+                      <span class="metaItem muted">· <%= t("记录人：") %><%= f.created_by_name %></span>
+                    <% } %>
+
+                    <% if (Number(f.need_analysis) === 1) { %>
+                      <span class="pill pill--soft">需要分析</span>
+                    <% } %>
+
+                    <% if (f.followup_type === 'visit' && Number(f.photo_count || 0) > 0) { %>
+                      <span class="pill pill--soft">照片 <span class="mono"><%= f.photo_count %></span> 张</span>
+                    <% } %>
+                  </div>
+                </div>
+
+                <div class="tlRight">
+                  <a class="opGhost" href="/portal/leads/<%= f.lead_id %>/followups/new"><%= t("写跟进") %></a>
+                  <a class="opMain" href="/portal/leads/<%= f.lead_id %>/visit"><%= t("拜访打卡") %></a>
+                </div>
+              </div>
+
+              <div class="tlContent pre"><%= f.content || '' %></div>
+
+              <% if (Number(f.need_analysis) === 1) { %>
+                <div class="tlSection">
+                  <div class="muted small"><%= t("分析") %></div>
+                  <div class="pre"><%= f.analysis || '' %></div>
+                </div>
+              <% } %>
+
+              <% if (f.followup_type === 'visit') { %>
+                <div class="tlSection muted small">
+                  <%= t("拜访") %>：
+                  <span class="mono"><%= (f.visit_lat!=null ? f.visit_lat : '-') %></span>,
+                  <span class="mono"><%= (f.visit_lng!=null ? f.visit_lng : '-') %></span>
+                  <% if (f.visit_address) { %> · <%= f.visit_address %><% } %>
+                </div>
+              <% } %>
+            </div>
+          <% }) %>
+        </div>
+      <% } %>
+    </div>
+
+    <div class="pager">
+      <div class="muted small">
+        <%= t("第") %> <%= pg.page %> / <%= pg.totalPages %> <%= t("页") %>
+      </div>
+      <div class="pager__actions">
+        <a class="btn btn--ghost <%= pg.page<=1 ? 'btn--disabled' : '' %>"
+           href="/portal/followups?<%= qsBase %>&page=<%= Math.max(1, pg.page-1) %>"><%= t("上一页") %></a>
+        <a class="btn btn--ghost <%= pg.page>=pg.totalPages ? 'btn--disabled' : '' %>"
+           href="/portal/followups?<%= qsBase %>&page=<%= Math.min(pg.totalPages, pg.page+1) %>"><%= t("下一页") %></a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  /* ✅ 不写 :root，避免覆盖 public/style.css */
+
+  .page__header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:14px;}
+  .page__header--sticky{position:sticky;top:0;z-index:20;background:var(--bg,#f8fafc);padding:14px 0;border-bottom:1px solid rgba(0,0,0,.06);}
+  .h1{font-size:18px;font-weight:500;color:var(--text,#111827);letter-spacing:-.2px;}
+  .sub{margin-top:6px;font-size:12px;color:var(--muted,#6b7280);}
+  .page__actions{display:flex;gap:10px;flex-wrap:wrap;}
+
+  .small{font-size:12px;}
+  .muted{color:var(--muted,#6b7280);}
+  .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;}
+  .strong{font-weight:600;color:#0f172a;}
+  .pre{white-space:pre-wrap;word-break:break-word;}
+
+  .alert{margin:0 0 12px 0;padding:10px 12px;border-radius:12px;font-size:13px;border:1px solid rgba(0,0,0,.08);background:#fff;}
+  .alert--ok{border-color:#bbf7d0;background:#f0fdf4;color:#166534;}
+  .alert--err{border-color:#fecaca;background:#fef2f2;color:#991b1b;}
+
+  .card{background:#fff;border:1px solid rgba(0,0,0,.06);border-radius:12px;margin:0 0 12px 0;box-shadow:0 1px 2px rgba(16,24,40,0.04);}
+  .card__hd{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid rgba(0,0,0,.06);}
+  .card__title{font-weight:500;color:var(--text,#111827);}
+
+  .filters{padding:12px 14px;display:grid;grid-template-columns: 1fr 160px 200px 120px 120px;gap:10px;align-items:center;}
+  .input{height:38px;border:1px solid rgba(0,0,0,.10);border-radius:10px;padding:0 12px;background:#fff;font-size:13px;outline:none;}
+  .input:focus{border-color:rgba(0,0,0,.25);box-shadow:0 0 0 3px rgba(148,163,184,0.15);}
+
+  .btn{display:inline-flex;align-items:center;justify-content:center;height:38px;padding:0 14px;border-radius:10px;border:1px solid rgba(0,0,0,.10);background:#fff;color:#111827;text-decoration:none;font-size:13px;font-weight:400;cursor:pointer;}
+  .btn--primary{border-color:#111827;background:#111827;color:#fff;font-weight:500;}
+  .btn--ghost{background:#fff;}
+  .btn--disabled{pointer-events:none;opacity:.45;}
+
+  .listPad{padding:14px;}
+  .empty{padding:14px;color:var(--muted,#6b7280);}
+
+  /* ✅ Timeline Card（轻量CRM） */
+  .timeline{display:flex;flex-direction:column;gap:12px;}
+
+  .tlCard{
+    border:1px solid rgba(0,0,0,.08);
+    border-radius:14px;
+    background:#fff;
+    overflow:hidden;
+  }
+  .tlCard:hover{
+    box-shadow:0 10px 30px rgba(15,23,42,.06);
+    border-color:rgba(0,0,0,.12);
+  }
+
+  .tlTop{
+    display:flex;
+    justify-content:space-between;
+    gap:14px;
+    padding:14px;
+    border-bottom:1px solid rgba(0,0,0,.06);
+    background:#fbfcfe;
+    align-items:flex-start;
+  }
+
+  .tlCompany{font-size:14px;font-weight:600;color:#0f172a;}
+  .link{color:#0f172a;text-decoration:none;}
+  .link:hover{text-decoration:underline;text-underline-offset:2px;}
+
+  .tlMeta{
+    margin-top:8px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    align-items:center;
+    font-size:12px;
+    color:#475569;
+  }
+  .metaItem{font-size:12px;color:#475569;}
+
+  .tag{
+    display:inline-flex;align-items:center;
+    padding:5px 10px;border-radius:999px;
+    background:#f3f4f6;color:#334155;font-size:12px;font-weight:500;
+    border:1px solid rgba(0,0,0,.08);
+    white-space:nowrap;
+  }
+
+  .pill{
+    display:inline-flex;align-items:center;
+    height:24px;padding:0 10px;border-radius:999px;
+    border:1px solid rgba(0,0,0,.10);
+    font-size:12px;font-weight:500;
+    background:#fff;
+    white-space:nowrap;
+    color:#0f172a;
+  }
+  .pill--soft{background:#f8fafc;border-color:rgba(0,0,0,.10);}
+
+  .tlRight{display:flex;gap:10px;align-items:center;flex-wrap:wrap;white-space:nowrap;}
+  .opMain{
+    display:inline-flex;align-items:center;justify-content:center;
+    height:34px;padding:0 12px;border-radius:10px;
+    border:1px solid #111827;background:#111827;color:#fff;
+    font-size:13px;font-weight:500;text-decoration:none;
+  }
+  .opGhost{
+    display:inline-flex;align-items:center;justify-content:center;
+    height:34px;padding:0 12px;border-radius:10px;
+    border:1px solid rgba(0,0,0,.10);background:#fff;color:#0f172a;
+    font-size:13px;font-weight:400;text-decoration:none;
+  }
+  .opGhost:hover{border-color:rgba(0,0,0,.18);background:#fbfcfe;}
+
+  .tlContent{
+    padding:14px;
+    font-size:13px;
+    color:#0f172a;
+    line-height:1.55;
+  }
+
+  .tlSection{
+    padding:12px 14px;
+    border-top:1px solid rgba(0,0,0,.06);
+    background:#fff;
+    font-size:13px;
+    color:#0f172a;
+    line-height:1.55;
+  }
+
+  .pager{display:flex;justify-content:space-between;align-items:center;margin:12px 14px 14px 14px;}
+  .pager__actions{display:flex;gap:10px;}
+
+  @media (max-width: 1100px){
+    .filters{grid-template-columns:1fr 160px 200px; }
+  }
+  @media (max-width: 980px){
+    .filters{grid-template-columns:1fr;}
+    .tlTop{flex-direction:column;align-items:stretch;}
+    .tlRight{width:100%;}
+  }
+</style>

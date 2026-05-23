@@ -1,0 +1,454 @@
+<%
+const pageError = (typeof error !== "undefined" && error) ? String(error) : "";
+const pageSuccess = (typeof success !== "undefined" && success) ? String(success) : "";
+const batchRuleHint = (typeof ruleHint !== "undefined" && ruleHint) ? String(ruleHint) : "";
+const priorityIds = Array.isArray(priorityLeadIds) ? priorityLeadIds.map(x => Number(x)) : [];
+
+function safe(v){ return (v==null?'':String(v)); }
+
+const curPageSize = (typeof pageSize !== "undefined" && pageSize)
+  ? String(pageSize)
+  : String(pagination?.pageSize || 50);
+
+function fmtDate(v){
+  if(!v) return "-";
+  try{
+    return new Date(v).toLocaleString();
+  }catch(e){
+    return String(v);
+  }
+}
+%>
+
+<style>
+  .bc-page{display:flex;flex-direction:column;gap:16px;}
+  .bc-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;}
+  .bc-title{margin:0;font-size:22px;font-weight:600;color:#111827;letter-spacing:.2px;}
+  .bc-sub{margin-top:6px;font-size:13px;color:#6b7280;line-height:1.6;}
+  .bc-actions{display:flex;gap:10px;flex-wrap:wrap;}
+  .bc-alert{border-radius:14px;padding:14px 16px;font-size:14px;line-height:1.7;}
+  .bc-alert.error{border:1px solid #fecaca;background:#fff7f7;color:#b91c1c;}
+  .bc-alert.success{border:1px solid #bbf7d0;background:#f6fff8;color:#15803d;}
+  .bc-alert.info{border:1px solid #dbeafe;background:#f8fbff;color:#1d4ed8;}
+  .bc-grid{display:grid;grid-template-columns:360px minmax(0, 1fr);gap:16px;align-items:start;}
+  .bc-card{background:#fff;border:1px solid #e5e7eb;border-radius:18px;overflow:hidden;}
+  .bc-card-head{padding:16px 18px 0;}
+  .bc-card-title{font-size:16px;font-weight:600;color:#111827;}
+  .bc-card-sub{margin-top:6px;font-size:12px;color:#6b7280;line-height:1.6;}
+  .bc-card-body{padding:18px;}
+  .bc-stack{display:flex;flex-direction:column;gap:14px;}
+  .bc-field{display:flex;flex-direction:column;gap:8px;}
+  .bc-label{font-size:13px;font-weight:500;color:#374151;}
+  .bc-input,.bc-select,.bc-textarea{
+    width:100%;border:1px solid #e5e7eb;border-radius:12px;background:#fff;color:#111827;
+    font-size:14px;font-weight:400;outline:none;transition:.15s ease;
+  }
+  .bc-input,.bc-select{height:42px;padding:0 12px;}
+  .bc-textarea{min-height:96px;padding:10px 12px;resize:vertical;line-height:1.6;}
+  .bc-input:focus,.bc-select:focus,.bc-textarea:focus{
+    border-color:#93c5fd;box-shadow:0 0 0 3px rgba(59,130,246,.08);
+  }
+  .bc-help{font-size:12px;color:#6b7280;line-height:1.7;}
+  .bc-form-grid{display:grid;grid-template-columns:2fr 1fr 1fr 120px;gap:12px;align-items:end;margin-bottom:14px;}
+  .bc-form-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+  .bc-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px;}
+  .bc-toolbar-left{font-size:13px;color:#6b7280;}
+  .bc-toolbar-right{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+  .bc-count{
+    display:inline-flex;align-items:center;height:32px;padding:0 12px;border-radius:999px;border:1px solid #e5e7eb;
+    background:#f9fafb;font-size:12px;color:#374151;font-weight:500;
+  }
+  .bc-table-wrap{width:100%;overflow:auto;border:1px solid #eef2f7;border-radius:16px;}
+  .bc-table{width:100%;min-width:1320px;border-collapse:collapse;table-layout:fixed;background:#fff;}
+  .bc-table thead th{
+    position:sticky;top:0;z-index:1;background:#fafafa;border-bottom:1px solid #e5e7eb;padding:12px 10px;
+    text-align:left;font-size:12px;color:#6b7280;font-weight:600;
+  }
+  .bc-table tbody td{border-bottom:1px solid #f1f5f9;padding:12px 10px;vertical-align:top;font-size:13px;color:#111827;}
+  .bc-table tbody tr:hover{background:#fafcff;}
+  .bc-rowPriority{background:#fffaf0;}
+  .bc-mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-weight:500;}
+  .bc-company{font-weight:600;color:#111827;line-height:1.5;margin-bottom:4px;}
+  .bc-subline{font-size:12px;color:#6b7280;line-height:1.6;}
+  .bc-pill{
+    display:inline-flex;align-items:center;justify-content:center;min-height:28px;padding:0 10px;border-radius:999px;
+    border:1px solid #e5e7eb;background:#f9fafb;color:#374151;font-size:12px;font-weight:500;line-height:1.4;
+  }
+  .bc-pill.stage{background:#f8fafc;}
+  .bc-pill.level{background:#f9fafb;}
+  .bc-pill.ok{background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8;}
+  .bc-pill.warn{background:#fffbeb;border-color:#fde68a;color:#b45309;}
+  .bc-pill.bad{background:#fff5f5;border-color:#fecaca;color:#dc2626;}
+  .bc-pill.priority{background:#111827;border-color:#111827;color:#fff;}
+  .bc-cycle{display:flex;flex-direction:column;gap:4px;}
+  .bc-cycle strong{font-size:13px;font-weight:600;color:#111827;}
+  .bc-links{display:flex;flex-wrap:wrap;gap:8px;}
+  .bc-link{color:#2563eb;text-decoration:none;font-size:13px;font-weight:500;}
+  .bc-link:hover{text-decoration:underline;}
+  .bc-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:12px;flex-wrap:wrap;}
+  .bc-foot-left{font-size:12px;color:#6b7280;}
+  .bc-foot-right{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+  .bc-btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:6px;height:40px;padding:0 16px;border-radius:12px;
+    border:none;background:#111827;color:#fff;font-size:14px;font-weight:600;cursor:pointer;text-decoration:none;
+  }
+  .bc-btn:hover{opacity:.95;}
+  .bc-btn-outline{background:#fff;color:#111827;border:1px solid #d1d5db;}
+  .bc-btn-disabled{opacity:.45;pointer-events:none;}
+  .bc-empty{text-align:center;padding:24px;color:#6b7280;font-size:13px;}
+  .bc-rule-box{display:flex;flex-direction:column;gap:10px;}
+  .bc-rule-item{display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#374151;line-height:1.7;}
+  .bc-rule-dot{width:8px;height:8px;border-radius:50%;background:#2563eb;margin-top:7px;flex:0 0 auto;}
+
+  @media (max-width: 1180px){
+    .bc-grid{grid-template-columns:1fr;}
+    .bc-form-grid{grid-template-columns:1fr 1fr;}
+  }
+  @media (max-width: 760px){
+    .bc-form-grid{grid-template-columns:1fr;}
+  }
+</style>
+
+<div class="bc-page">
+  <div class="bc-head">
+    <div>
+      <h1 class="bc-title"><%= t("创建批次") %></h1>
+      <div class="bc-sub"><%= t("先创建批次信息，再从右侧候选线索池中勾选加入。系统会自动按批次规则过滤不应进入本轮的线索。") %></div>
+    </div>
+
+    <div class="bc-actions">
+      <a class="bc-btn bc-btn-outline" href="/portal/batches"><%= t("返回列表") %></a>
+      <a class="bc-btn bc-btn-outline" href="/portal/lead-pool"><%= t("去线索池") %></a>
+    </div>
+  </div>
+
+  <% if (pageError) { %>
+    <div class="bc-alert error"><%= pageError %></div>
+  <% } %>
+
+  <% if (pageSuccess) { %>
+    <div class="bc-alert success"><%= pageSuccess %></div>
+  <% } %>
+
+  <% if (batchRuleHint) { %>
+    <div class="bc-alert info">
+      <strong>批次筛选规则：</strong><%= batchRuleHint %>
+    </div>
+  <% } %>
+
+  <div class="bc-grid">
+    <div class="bc-card">
+      <div class="bc-card-head">
+        <div class="bc-card-title"><%= t("批次信息") %></div>
+        <div class="bc-card-sub"><%= t("建议按日期 + 渠道 + 批次序号命名，方便后续发货、轨迹、复盘。") %></div>
+      </div>
+
+      <div class="bc-card-body">
+        <form id="createBatchForm" method="post" action="/portal/batches" class="bc-stack">
+          <div class="bc-field">
+            <div class="bc-label"><%= t("批次名称") %> *</div>
+            <input class="bc-input" name="batch_name" required placeholder="例如：2026-03-圆通推单-第一批">
+          </div>
+
+          <div class="bc-field">
+            <div class="bc-label"><%= t("备注") %></div>
+            <textarea class="bc-textarea" name="remark" rows="4" placeholder="可填写本批次说明、渠道、目标客户类型等"></textarea>
+          </div>
+
+          <div class="bc-card" style="border-radius:14px;border-color:#eef2f7;">
+            <div class="bc-card-body" style="padding:14px 16px;">
+              <div class="bc-card-title" style="font-size:14px;"><%= t("本轮规则说明") %></div>
+
+              <div class="bc-rule-box" style="margin-top:10px;">
+                <div class="bc-rule-item"><span class="bc-rule-dot"></span><span>已成交客户默认不进入新批次。</span></div>
+                <div class="bc-rule-item"><span class="bc-rule-dot"></span><span>无群客户按 <strong>30天</strong> 循环：近30天内已成功发货的不显示。</span></div>
+                <div class="bc-rule-item"><span class="bc-rule-dot"></span><span>有群客户按 <strong>90天</strong> 循环：近90天内已成功发货的不显示。</span></div>
+                <div class="bc-rule-item"><span class="bc-rule-dot"></span><span>最近一次物流状态为 <strong>EXCEPTION</strong> 的客户不在批次里表现，请到圆通轨迹页处理。</span></div>
+                <div class="bc-rule-item"><span class="bc-rule-dot"></span><span><strong>优先发件</strong> 客户会自动进入并默认勾选。</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="bc-help" id="selHint">
+            当前会提交右侧已勾选线索，同时系统会自动并入“优先发件”客户。服务端会再次过滤并自动去重。
+          </div>
+
+          <div style="display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;">
+            <a class="bc-btn bc-btn-outline" href="/portal/batches"><%= t("取消") %></a>
+            <button class="bc-btn" type="submit"><%= t("创建批次并加入线索") %></button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="bc-card">
+      <div class="bc-card-head">
+        <div class="bc-card-title"><%= t("勾选线索加入批次") %></div>
+        <div class="bc-card-sub">这里只显示当前符合批次创建规则的候选线索。优先发件客户会自动插入到候选列表顶部并默认勾选。</div>
+      </div>
+
+      <div class="bc-card-body">
+        <form method="get" action="/portal/batches/create" class="bc-form-grid">
+          <div>
+            <div class="bc-label"><%= t("关键词") %></div>
+            <input class="bc-input" name="keyword" value="<%= safe(keyword) %>" placeholder="公司 / 联系人 / 电话 / VAT / 群编号 / 产品品类 / 品牌">
+          </div>
+
+          <div>
+            <div class="bc-label"><%= t("阶段") %></div>
+            <select class="bc-select" name="stage">
+              <option value=""><%= t("全部阶段") %></option>
+              <% (STAGES || []).forEach(sg => { %>
+                <option value="<%= sg %>" <%= stage===sg?'selected':'' %>><%= sg %></option>
+              <% }) %>
+            </select>
+          </div>
+
+          <div>
+            <div class="bc-label"><%= t("等级") %></div>
+            <select class="bc-select" name="level">
+              <option value=""><%= t("全部等级") %></option>
+              <% (LEVELS || []).forEach(lv => { %>
+                <option value="<%= lv %>" <%= level===lv?'selected':'' %>><%= lv %></option>
+              <% }) %>
+            </select>
+          </div>
+
+          <div>
+            <div class="bc-label"><%= t("每页") %></div>
+            <select class="bc-select" name="pageSize" onchange="this.form.submit()">
+              <% [50,100,200,400,500].forEach(ps => { %>
+                <option value="<%= ps %>" <%= (String(ps)===curPageSize?'selected':'') %>><%= ps %></option>
+              <% }) %>
+            </select>
+          </div>
+
+          <div class="bc-form-actions" style="grid-column:1 / -1;">
+            <button class="bc-btn" type="submit">筛选</button>
+            <a class="bc-btn bc-btn-outline" href="/portal/batches/create?pageSize=50">重置</a>
+          </div>
+        </form>
+
+        <div class="bc-toolbar">
+          <div class="bc-toolbar-left">
+            共 <strong><%= pagination?.total || 0 %></strong> 条 ·
+            第 <strong><%= pagination?.page || 1 %></strong>/<strong><%= pagination?.totalPages || 1 %></strong> 页
+            <% if (priorityIds.length > 0) { %>
+              · <strong>优先发件 <%= priorityIds.length %> 条</strong>
+            <% } %>
+          </div>
+
+          <div class="bc-toolbar-right">
+            <span class="bc-count" id="selCount">已选 0 条</span>
+
+            <% if ((pagination?.page||1)>1){ %>
+              <a
+                class="bc-btn bc-btn-outline"
+                href="/portal/batches/create?page=<%=pagination.page-1%>&pageSize=<%=curPageSize%>&keyword=<%=encodeURIComponent(keyword||'')%>&stage=<%=encodeURIComponent(stage||'')%>&level=<%=encodeURIComponent(level||'')%>">
+                上一页
+              </a>
+            <% }else{ %>
+              <span class="bc-btn bc-btn-outline bc-btn-disabled">上一页</span>
+            <% } %>
+
+            <% if ((pagination?.page||1)<(pagination?.totalPages||1)){ %>
+              <a
+                class="bc-btn bc-btn-outline"
+                href="/portal/batches/create?page=<%=pagination.page+1%>&pageSize=<%=curPageSize%>&keyword=<%=encodeURIComponent(keyword||'')%>&stage=<%=encodeURIComponent(stage||'')%>&level=<%=encodeURIComponent(level||'')%>">
+                下一页
+              </a>
+            <% }else{ %>
+              <span class="bc-btn bc-btn-outline bc-btn-disabled">下一页</span>
+            <% } %>
+          </div>
+        </div>
+
+        <div class="bc-table-wrap">
+          <table class="bc-table">
+            <thead>
+              <tr>
+                <th style="width:42px;"><input type="checkbox" id="chkAll"></th>
+                <th style="width:72px;">ID</th>
+                <th style="width:280px;">公司 / 联系方式</th>
+                <th style="width:90px;">等级</th>
+                <th style="width:110px;">阶段</th>
+                <th style="width:120px;">群状态</th>
+                <th style="width:110px;">循环规则</th>
+                <th style="width:180px;">最近成功发货</th>
+                <th style="width:140px;">最近物流状态</th>
+                <th style="width:130px;">操作</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              <% if(!leads || leads.length===0){ %>
+                <tr>
+                  <td colspan="10" class="bc-empty">暂无符合当前批次规则的候选线索</td>
+                </tr>
+              <% }else{ %>
+                <% leads.forEach(r=>{ %>
+                  <%
+                    const hasGroup = !!(r.wechat_group_code && String(r.wechat_group_code).trim());
+                    const cycleDays = Number(r.batch_cycle_days || (hasGroup ? 90 : 30));
+                    const lastShipAt = r.last_success_shipment_at || null;
+                    const lastStatus = safe(r.last_success_logistics_status || "");
+                    const lastStatusText = lastStatus || "未发货";
+                    const isPriority = priorityIds.includes(Number(r.id)) || Number(r.is_priority_send || 0) === 1;
+                    let statusCls = "bc-pill";
+                    if (lastStatus === "EXCEPTION") statusCls = "bc-pill bad";
+                    else if (lastStatus === "SIGNED") statusCls = "bc-pill ok";
+                    else if (lastStatus === "IN_TRANSIT") statusCls = "bc-pill warn";
+                  %>
+
+                  <tr class="<%= isPriority ? 'bc-rowPriority' : '' %>">
+                    <td>
+                      <input
+                        type="checkbox"
+                        class="chkOne"
+                        value="<%=r.id%>"
+                        <%= isPriority ? 'checked' : '' %>
+                      >
+                    </td>
+
+                    <td class="bc-mono"><%=r.id%></td>
+
+                    <td>
+                      <div class="bc-company">
+                        <%= r.company_name || '-' %>
+                        <% if (isPriority) { %>
+                          <span class="bc-pill priority" style="margin-left:8px;">优先发件</span>
+                        <% } %>
+                      </div>
+
+                      <div class="bc-subline">
+                        <%= r.contact_name ? ('联系人：' + r.contact_name) : '' %>
+                        <%= r.receiver_name ? (' · 收件人：' + r.receiver_name) : '' %>
+                      </div>
+
+                      <div class="bc-subline">
+                        <%= r.phone ? ('电话：' + r.phone) : '' %>
+                        <%= r.receiver_mobile ? (' · 收件电话：' + r.receiver_mobile) : '' %>
+                      </div>
+
+                      <% if (r.category || r.brand) { %>
+                        <div class="bc-subline" style="margin-top:4px;">
+                          <%= r.category ? ('产品：' + r.category) : '' %>
+                          <%= (r.category && r.brand) ? ' · ' : '' %>
+                          <%= r.brand ? ('品牌：' + r.brand) : '' %>
+                        </div>
+                      <% } %>
+                    </td>
+
+                    <td><span class="bc-pill level"><%=r.customer_level||'-'%></span></td>
+                    <td><span class="bc-pill stage"><%=r.workflow_stage||'-'%></span></td>
+
+                    <td>
+                      <% if (hasGroup) { %>
+                        <span class="bc-pill ok">已建群</span>
+                        <div class="bc-subline" style="margin-top:6px;"><%= safe(r.wechat_group_code || '-') %></div>
+                      <% } else { %>
+                        <span class="bc-pill">未建群</span>
+                      <% } %>
+                    </td>
+
+                    <td>
+                      <div class="bc-cycle">
+                        <strong><%= cycleDays %> 天</strong>
+                        <div class="bc-subline"><%= hasGroup ? "有群客户循环" : "普通客户循环" %></div>
+                      </div>
+                    </td>
+
+                    <td>
+                      <div class="bc-mono"><%= fmtDate(lastShipAt) %></div>
+                      <% if (r.last_success_waybill_no) { %>
+                        <div class="bc-subline">单号：<%= safe(r.last_success_waybill_no) %></div>
+                      <% } else { %>
+                        <div class="bc-subline">暂无成功发货</div>
+                      <% } %>
+                    </td>
+
+                    <td>
+                      <span class="<%= statusCls %>"><%= lastStatusText %></span>
+                    </td>
+
+                    <td>
+                      <div class="bc-links">
+                        <a class="bc-link" href="/portal/leads/<%=r.id%>" target="_blank">详情</a>
+                        <a class="bc-link" href="/portal/leads/<%=r.id%>/edit" target="_blank">编辑</a>
+                      </div>
+                    </td>
+                  </tr>
+                <% }) %>
+              <% } %>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="bc-foot">
+          <div class="bc-foot-left">
+            当前页面勾选后再提交创建批次。提交时系统会再次校验，自动过滤掉已不符合规则的线索；优先发件客户会自动并入。
+          </div>
+
+          <div class="bc-foot-right">
+            <span class="bc-count" id="selCountBottom">已选 0 条</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const chkAll = document.getElementById("chkAll");
+const form = document.getElementById("createBatchForm");
+const selCount = document.getElementById("selCount");
+const selCountBottom = document.getElementById("selCountBottom");
+
+function getIds() {
+  return Array.from(document.querySelectorAll(".chkOne:checked")).map((x) => x.value);
+}
+
+function sync() {
+  const ids = getIds();
+
+  form.querySelectorAll('input[name="ids"]').forEach((x) => x.remove());
+
+  ids.forEach((id) => {
+    const i = document.createElement("input");
+    i.type = "hidden";
+    i.name = "ids";
+    i.value = id;
+    form.appendChild(i);
+  });
+
+  if (selCount) selCount.textContent = `已选 ${ids.length} 条`;
+  if (selCountBottom) selCountBottom.textContent = `已选 ${ids.length} 条`;
+
+  const all = document.querySelectorAll(".chkOne");
+  const checked = document.querySelectorAll(".chkOne:checked");
+  if (chkAll) {
+    chkAll.checked = !!all.length && all.length === checked.length;
+  }
+}
+
+chkAll?.addEventListener("change", (e) => {
+  document.querySelectorAll(".chkOne").forEach((c) => {
+    c.checked = e.target.checked;
+  });
+  sync();
+});
+
+document.querySelectorAll(".chkOne").forEach((c) => {
+  c.addEventListener("change", sync);
+});
+
+form?.addEventListener("submit", (e) => {
+  const ids = getIds();
+  if (!ids.length) {
+    e.preventDefault();
+    alert("请先勾选线索");
+  }
+});
+
+sync();
+</script>

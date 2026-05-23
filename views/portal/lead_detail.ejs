@@ -1,0 +1,380 @@
+<%
+const l = lead || {};
+const followupsSafe = followups || [];
+const attachmentsSafe = (typeof attachments !== "undefined" && attachments) ? attachments : [];
+
+function fmtDT(v){
+  if(!v) return '-';
+  const d = new Date(v);
+  if(Number.isNaN(d.getTime())) return String(v);
+  return d.toISOString().slice(0,19).replace('T',' ');
+}
+function fmtDate(v){
+  if(!v) return '-';
+  const d = new Date(v);
+  if(Number.isNaN(d.getTime())) return String(v);
+  return d.toISOString().slice(0,10);
+}
+function safeText(v){
+  if(v==null) return '-';
+  const s = String(v).trim();
+  return s ? s : '-';
+}
+function isUrlLike(v){
+  const s = String(v||'').trim();
+  return /^https?:\/\//i.test(s);
+}
+function formatFileSize(size){
+  const n = Number(size || 0);
+  if(!Number.isFinite(n) || n <= 0) return '-';
+  if(n < 1024) return `${n} B`;
+  if(n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+}
+function isImageExt(ext){
+  return ["jpg","jpeg","png","webp"].includes(String(ext || "").toLowerCase());
+}
+function fileTypeName(ext){
+  const x = String(ext || "").toLowerCase();
+  if (["jpg","jpeg","png","webp"].includes(x)) return "图片";
+  if (x === "pdf") return "PDF";
+  if (["xls","xlsx"].includes(x)) return "Excel";
+  if (["doc","docx"].includes(x)) return "Word";
+  if (["zip","rar"].includes(x)) return "压缩包";
+  if (x === "txt") return "文本";
+  return x ? x.toUpperCase() : "文件";
+}
+%>
+
+<div class="page">
+  <div class="page__header page__header--sticky">
+    <div>
+      <div class="h1">线索详情 #<%= l.id %></div>
+      <div class="sub"><%= l.company_name || '-' %></div>
+    </div>
+
+    <div class="page__actions">
+      <a class="btn btn--ghost" href="/portal/lead-pool">返回线索池</a>
+      <a class="btn btn--primary" href="/portal/leads/<%= l.id %>/edit">修改</a>
+      <a class="btn btn--ghost" href="/portal/leads/<%= l.id %>/plans">计划（<%= Number(planCount||0) %>）</a>
+      <a class="btn btn--ghost" href="/portal/leads/<%= l.id %>/followups/new">新增跟进</a>
+
+      <% if (!l.is_closed) { %>
+        <form method="post" action="/portal/leads/<%= l.id %>/close" class="inline">
+          <input type="hidden" name="back" value="/portal/leads/<%= l.id %>">
+          <input class="input input--mini" name="reason" placeholder="关闭原因(可选)">
+          <button class="btn btn--danger btn--mini" type="submit">关闭</button>
+        </form>
+      <% } else { %>
+        <form method="post" action="/portal/leads/<%= l.id %>/reopen" class="inline">
+          <input type="hidden" name="back" value="/portal/leads/<%= l.id %>">
+          <input class="input input--mini" name="reason" placeholder="恢复原因(可选)">
+          <button class="btn btn--ghost btn--mini" type="submit">恢复</button>
+        </form>
+      <% } %>
+    </div>
+  </div>
+
+  <% if (success) { %><div class="alert alert--ok"><%= success %></div><% } %>
+  <% if (error) { %><div class="alert alert--err"><%= error %></div><% } %>
+
+  <% if (l.is_closed) { %>
+    <div class="card">
+      <div class="card__hd">
+        <div class="card__title">状态</div>
+      </div>
+      <div class="kv">
+        <div class="kv__row"><div class="k">状态</div><div class="v"><span class="tag tag--danger">已关闭</span></div></div>
+        <div class="kv__row"><div class="k">关闭时间</div><div class="v mono"><%= fmtDT(l.closed_at) %></div></div>
+        <div class="kv__row"><div class="k">关闭原因</div><div class="v"><%= safeText(l.closed_reason) %></div></div>
+      </div>
+    </div>
+  <% } %>
+
+  <div class="card">
+    <div class="card__hd">
+      <div class="card__title">公司信息</div>
+    </div>
+    <div class="kv">
+      <div class="kv__row"><div class="k">公司（中文）</div><div class="v"><%= safeText(l.company_name) %></div></div>
+      <div class="kv__row"><div class="k">公司（英文）</div><div class="v"><%= safeText(l.company_name_en) %></div></div>
+      <div class="kv__row"><div class="k">Amazon 公司名</div><div class="v"><%= safeText(l.amazon_company_name) %></div></div>
+
+      <div class="kv__row"><div class="k">统一社会信用代码</div><div class="v mono"><%= safeText(l.unified_code) %></div></div>
+      <div class="kv__row"><div class="k">VAT</div><div class="v mono"><%= safeText(l.vat_no) %></div></div>
+
+      <div class="kv__row"><div class="k">法人</div><div class="v"><%= safeText(l.legal_person) %></div></div>
+      <div class="kv__row"><div class="k">注册资本</div><div class="v"><%= safeText(l.registered_capital) %></div></div>
+      <div class="kv__row"><div class="k">注册日期</div><div class="v mono"><%= l.registration_date ? fmtDate(l.registration_date) : '-' %></div></div>
+
+      <div class="kv__row"><div class="k">官网</div><div class="v">
+        <% if (l.website && isUrlLike(l.website)) { %>
+          <a class="link" href="<%= l.website %>" target="_blank" rel="noreferrer"><%= l.website %></a>
+        <% } else { %>
+          <%= safeText(l.website) %>
+        <% } %>
+      </div></div>
+
+      <div class="kv__row"><div class="k">类目</div><div class="v"><%= safeText(l.category) %></div></div>
+
+      <div class="kv__row"><div class="k">Amazon 店铺链接</div><div class="v">
+        <% if (l.amazon_shop_url && isUrlLike(l.amazon_shop_url)) { %>
+          <a class="link" href="<%= l.amazon_shop_url %>" target="_blank" rel="noreferrer"><%= l.amazon_shop_url %></a>
+        <% } else { %>
+          <%= safeText(l.amazon_shop_url) %>
+        <% } %>
+      </div></div>
+
+      <div class="kv__row kv__row--full"><div class="k">公司简介</div><div class="v pre"><%= safeText(l.company_profile) %></div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card__hd">
+      <div class="card__title">联系人信息</div>
+    </div>
+    <div class="kv">
+      <div class="kv__row"><div class="k">联系人</div><div class="v"><%= safeText(l.contact_name) %></div></div>
+      <div class="kv__row"><div class="k">电话</div><div class="v mono"><%= safeText(l.phone) %></div></div>
+      <div class="kv__row"><div class="k">邮箱</div><div class="v mono"><%= safeText(l.email) %></div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card__hd">
+      <div class="card__title">微信与社群</div>
+    </div>
+    <div class="kv">
+      <div class="kv__row"><div class="k">微信</div><div class="v mono"><%= safeText(l.wechat) %></div></div>
+      <div class="kv__row"><div class="k">微信群 code</div><div class="v mono"><%= safeText(l.wechat_group_code) %></div></div>
+      <div class="kv__row kv__row--full"><div class="k">微信群二维码</div><div class="v">
+        <% if (!l.wechat_group_qr) { %>
+          <span class="muted">-</span>
+        <% } else if (isUrlLike(l.wechat_group_qr)) { %>
+          <a class="link" href="<%= l.wechat_group_qr %>" target="_blank" rel="noreferrer"><%= l.wechat_group_qr %></a>
+          <div class="qr"><img src="<%= l.wechat_group_qr %>" alt="wechat qr"></div>
+        <% } else { %>
+          <a class="link" href="<%= l.wechat_group_qr %>" target="_blank" rel="noreferrer"><%= l.wechat_group_qr %></a>
+          <div class="qr"><img src="<%= l.wechat_group_qr %>" alt="wechat qr"></div>
+        <% } %>
+      </div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card__hd">
+      <div class="card__title">销售信息</div>
+    </div>
+    <div class="kv">
+      <div class="kv__row"><div class="k">阶段</div><div class="v"><span class="tag"><%= safeText(l.workflow_stage) %></span></div></div>
+      <div class="kv__row"><div class="k">级别</div><div class="v"><span class="tag"><%= safeText(l.customer_level) %></span></div></div>
+      <div class="kv__row"><div class="k">优先级</div><div class="v"><span class="tag"><%= safeText(l.priority) %></span></div></div>
+      <div class="kv__row"><div class="k">来源</div><div class="v"><%= safeText(l.source) %></div></div>
+      <div class="kv__row"><div class="k">负责人 owner_id</div><div class="v mono"><%= safeText(l.owner_id) %></div></div>
+      <div class="kv__row"><div class="k">品牌</div><div class="v"><%= safeText(l.brand) %></div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card__hd">
+      <div class="card__title">样品</div>
+    </div>
+    <div class="kv">
+      <div class="kv__row"><div class="k">样品快递单号</div><div class="v mono"><%= safeText(l.sample_tracking_no) %></div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card__hd">
+      <div class="card__title">收货信息</div>
+    </div>
+    <div class="kv">
+      <div class="kv__row"><div class="k">收货人</div><div class="v"><%= safeText(l.receiver_name) %></div></div>
+      <div class="kv__row"><div class="k">收货手机</div><div class="v mono"><%= safeText(l.receiver_mobile) %></div></div>
+
+      <div class="kv__row"><div class="k">省</div><div class="v"><%= safeText(l.receiver_province) %></div></div>
+      <div class="kv__row"><div class="k">市</div><div class="v"><%= safeText(l.receiver_city) %></div></div>
+      <div class="kv__row"><div class="k">区/县</div><div class="v"><%= safeText(l.receiver_county) %></div></div>
+      <div class="kv__row"><div class="k">镇/街道</div><div class="v"><%= safeText(l.receiver_town) %></div></div>
+
+      <div class="kv__row kv__row--full"><div class="k">详细地址</div><div class="v"><%= safeText(l.receiver_address) %></div></div>
+      <div class="kv__row"><div class="k">邮编</div><div class="v mono"><%= safeText(l.receiver_postal_code) %></div></div>
+
+      <div class="kv__row"><div class="k">国家</div><div class="v"><%= safeText(l.country) %></div></div>
+    </div>
+  </div>
+
+  <!-- 附件 -->
+  <div class="card">
+    <div class="card__hd card__hd--stack">
+      <div class="card__hdTop">
+        <div class="card__title">附件</div>
+        <div class="muted small">共 <%= attachmentsSafe.length %> 个</div>
+      </div>
+
+      <form
+        method="post"
+        action="/portal/leads/<%= l.id %>/attachments"
+        enctype="multipart/form-data"
+        class="attachForm"
+      >
+        <input type="hidden" name="back" value="/portal/leads/<%= l.id %>">
+        <input class="input input--file" type="file" name="attachments" multiple>
+        <button class="btn btn--primary" type="submit">上传附件</button>
+      </form>
+    </div>
+
+    <% if (!attachmentsSafe.length) { %>
+      <div class="empty muted">暂无附件</div>
+    <% } else { %>
+      <div class="list">
+        <% attachmentsSafe.forEach(file => { %>
+          <div class="item">
+            <div class="item__hd">
+              <span class="tag"><%= fileTypeName(file.file_ext) %></span>
+              <span class="muted small mono"><%= formatFileSize(file.file_size) %></span>
+              <span class="muted small"><%= file.created_by_name ? ('· ' + file.created_by_name) : '' %></span>
+              <span class="muted small mono"><%= file.created_at ? fmtDT(file.created_at) : '' %></span>
+            </div>
+
+            <div class="item__bd breakAll"><%= file.original_name || '-' %></div>
+
+            <div class="item__ft attachActions">
+              <% if (isImageExt(file.file_ext)) { %>
+                <a class="link" href="<%= file.file_path %>" target="_blank" rel="noreferrer">预览</a>
+              <% } else { %>
+                <a class="link" href="<%= file.file_path %>" target="_blank" rel="noreferrer" download>下载</a>
+              <% } %>
+
+              <form
+                method="post"
+                action="/portal/leads/attachments/<%= file.id %>/delete"
+                class="inline"
+                onsubmit="return confirm('确认删除这个附件吗？')"
+              >
+                <input type="hidden" name="back" value="/portal/leads/<%= l.id %>">
+                <button class="btnLinkDanger" type="submit">删除</button>
+              </form>
+            </div>
+          </div>
+        <% }) %>
+      </div>
+    <% } %>
+  </div>
+
+  <div class="card">
+    <div class="card__hd">
+      <div class="card__title">系统信息</div>
+    </div>
+    <div class="kv">
+      <div class="kv__row"><div class="k">ID</div><div class="v mono"><%= safeText(l.id) %></div></div>
+      <div class="kv__row"><div class="k">是否启用</div><div class="v"><%= Number(l.is_active) === 1 ? '启用' : '停用' %></div></div>
+      <div class="kv__row"><div class="k">创建时间</div><div class="v mono"><%= fmtDT(l.created_at) %></div></div>
+      <div class="kv__row"><div class="k">更新时间</div><div class="v mono"><%= fmtDT(l.updated_at) %></div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card__hd">
+      <div class="card__title">跟进记录</div>
+      <div class="muted small">共 <%= followupsSafe.length %> 条</div>
+    </div>
+
+    <% if (!followupsSafe.length) { %>
+      <div class="empty muted">暂无跟进</div>
+    <% } %>
+
+    <div class="list">
+      <% followupsSafe.forEach(f=>{ %>
+        <div class="item">
+          <div class="item__hd">
+            <span class="tag"><%= f.followup_type || '-' %></span>
+            <span class="muted small mono"><%= f.created_at ? fmtDT(f.created_at) : '' %></span>
+            <span class="muted small"><%= f.created_by_name ? ('· '+f.created_by_name) : '' %></span>
+            <% if (Number(f.photo_count||0) > 0) { %>
+              <span class="tag tag--soft">照片 <%= Number(f.photo_count||0) %></span>
+            <% } %>
+          </div>
+
+          <div class="item__bd"><%= f.content || '' %></div>
+
+          <% if (f.visit_checked_in_at) { %>
+            <div class="item__ft muted small">
+              拜访打卡：<span class="mono"><%= fmtDT(f.visit_checked_in_at) %></span>
+              <% if (f.visit_address) { %> · <%= f.visit_address %><% } %>
+            </div>
+          <% } %>
+
+          <% if (f.need_analysis && f.analysis) { %>
+            <div class="item__ft muted small">分析：<%= f.analysis %></div>
+          <% } %>
+        </div>
+      <% }) %>
+    </div>
+  </div>
+</div>
+
+<style>
+  .page__header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:14px;}
+  .page__header--sticky{position:sticky;top:0;z-index:20;background:#f8fafc;padding:14px 0;border-bottom:1px solid #eef2f7;}
+  .page__actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+  .h1{font-size:22px;font-weight:600;}
+  .sub{margin-top:6px;font-size:12px;color:#6b7280;}
+  .small{font-size:12px;}
+  .muted{color:#6b7280;}
+  .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;}
+  .tag{display:inline-block;padding:2px 10px;border-radius:999px;background:#f1f5f9;color:#111827;font-size:12px;font-weight:500;}
+  .tag--danger{background:#fef2f2;color:#991b1b;border:1px solid #fecaca;}
+  .tag--soft{background:#f8fafc;color:#334155;border:1px solid #e2e8f0;}
+
+  .alert{margin:0 0 12px 0;padding:10px 12px;border-radius:14px;font-size:13px;border:1px solid #e5e7eb;background:#fff;}
+  .alert--ok{border-color:#bbf7d0;background:#f0fdf4;color:#166534;}
+  .alert--err{border-color:#fecaca;background:#fef2f2;color:#991b1b;}
+
+  .card{background:#fff;border:1px solid #eef2f7;border-radius:16px;margin:0 0 12px 0;}
+  .card__hd{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid #f1f5f9;gap:12px;}
+  .card__hd--stack{display:flex;flex-direction:column;align-items:stretch;}
+  .card__hdTop{display:flex;justify-content:space-between;align-items:center;gap:12px;}
+  .card__title{font-weight:600;}
+  .kv{padding:12px 14px;display:grid;gap:10px;}
+  .kv__row{display:grid;grid-template-columns:140px 1fr;gap:10px;align-items:center;}
+  .kv__row--full{grid-template-columns:140px 1fr;}
+  .k{color:#6b7280;font-size:12px;}
+  .v{color:#111827;font-size:13px;}
+  .pre{white-space:pre-wrap;word-break:break-word;line-height:1.55;}
+  .empty{padding:12px 14px;}
+  .link{color:#111827;text-decoration:underline;text-underline-offset:2px;}
+
+  .list{padding:12px 14px;display:grid;gap:10px;}
+  .item{border:1px solid #f1f5f9;border-radius:14px;padding:10px 12px;background:#fff;}
+  .item__hd{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:6px;}
+  .item__bd{font-size:13px;line-height:1.5;color:#111827;}
+  .item__ft{margin-top:6px;}
+
+  .inline{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
+  .attachForm{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .attachActions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;}
+  .breakAll{word-break:break-all;}
+
+  .btn{display:inline-flex;align-items:center;justify-content:center;height:36px;padding:0 12px;border-radius:14px;border:1px solid #e5e7eb;background:#fff;color:#111827;text-decoration:none;font-size:13px;font-weight:500;}
+  .btn--ghost{background:#fff;color:#111827;}
+  .btn--primary{border-color:#111827;background:#111827;color:#fff;}
+  .btn--mini{height:28px;padding:0 10px;border-radius:10px;font-size:12px;}
+  .btn--danger{border:1px solid #fecaca;background:#fef2f2;color:#991b1b;}
+
+  .btnLinkDanger{border:none;background:none;padding:0;color:#991b1b;cursor:pointer;font-size:13px;font-weight:500;}
+
+  .input{height:36px;border:1px solid #e5e7eb;border-radius:14px;padding:0 10px;background:#fff;font-size:13px;outline:none;}
+  .input--mini{height:28px;font-size:12px;padding:0 8px;border-radius:10px;}
+  .input--file{padding:6px 10px;height:auto;min-height:36px;}
+
+  .qr{margin-top:8px;border:1px solid #eef2f7;border-radius:14px;padding:10px;display:inline-flex;align-items:center;justify-content:center;background:#fff;}
+  .qr img{max-width:180px;max-height:180px;border-radius:10px;display:block;}
+
+  @media (max-width: 980px){
+    .kv__row{grid-template-columns:1fr;gap:6px;}
+    .kv__row--full{grid-template-columns:1fr;}
+    .card__hdTop{flex-direction:column;align-items:flex-start;}
+    .attachForm{align-items:flex-start;flex-direction:column;}
+  }
+</style>

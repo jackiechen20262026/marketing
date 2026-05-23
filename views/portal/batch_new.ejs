@@ -1,0 +1,41 @@
+<%
+// views/portal/batch_new.ejs
+%>
+
+<div class="page-head">
+  <div>
+    <h1 class="page-title"><%= t("创建批次") %></h1>
+    <div class="page-sub"><%= t("先填写批次信息，再进入下一步勾选线索") %></div>
+  </div>
+
+  <div class="page-actions">
+    <a class="btn btn-outline" href="/portal/batches"><%= t("返回批次列表") %></a>
+  </div>
+</div>
+
+<% if (error) { %>
+  <div class="alert alert-danger"><%= error %></div>
+<% } %>
+
+<div class="card">
+  <div class="card-head">
+    <div class="card-title"><%= t("批次信息") %></div>
+  </div>
+
+  <form method="get" action="/portal/batches/new/select" class="stack">
+    <div>
+      <div class="label"><%= t("批次名称") %>*</div>
+      <input name="name" value="<%= form?.name || '' %>" placeholder="例如：德国2月宣传单第1批" required>
+    </div>
+
+    <div>
+      <div class="label"><%= t("备注") %></div>
+      <textarea name="remark" rows="4" placeholder="备注（可选）"><%= form?.remark || '' %></textarea>
+    </div>
+
+    <div style="display:flex;justify-content:flex-end;gap:10px;">
+      <a class="btn btn-outline" href="/portal/batches"><%= t("取消") %></a>
+      <button class="btn" type="submit"><%= t("下一步：勾选线索") %></button>
+    </div>
+  </form>
+</div>

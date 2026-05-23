@@ -1,0 +1,149 @@
+<%
+// views/portal/lead_import.ejs
+// 说明：
+// 1. 上传 Excel/CSV
+// 2. 进入 importPreview
+// 3. 校验 → 预览 → 确认导入
+%>
+
+<div class="page-head">
+  <div>
+    <h1 class="page-title"><%= t("导入线索") %></h1>
+    <div class="page-sub"><%= t("上传 Excel/CSV → 预览校验 → 确认导入") %></div>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-outline" href="/portal/lead-pool"><%= t("返回线索池") %></a>
+  </div>
+</div>
+
+<% if (error) { %>
+  <div class="alert alert-danger"><%= error %></div>
+<% } %>
+
+<% if (success) { %>
+  <div class="alert alert-success"><%= success %></div>
+<% } %>
+
+
+<!-- ============================= -->
+<!-- 模板下载 -->
+<!-- ============================= -->
+<div class="card">
+  <div class="card-head">
+    <div class="card-title"><%= t("下载导入模板") %></div>
+  </div>
+
+  <div class="stack">
+    <div class="small muted">
+      <%= t("建议先下载模板，严格按照模板表头填写后再上传。") %>
+    </div>
+
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <a class="btn btn-outline" href="/templates/leads_import_template.xlsx" download>
+        下载 模板
+      </a>
+    </div>
+
+    <div class="small muted" style="margin-top:10px;">
+      <strong>必填字段：</strong>
+      company_name、receiver_name、receiver_mobile、
+      receiver_province、receiver_city、receiver_address
+    </div>
+
+    <div class="small muted">
+      <strong>说明：</strong>
+      地址不保存在 leads 表，收件信息会写入 receiver_profiles，
+      推送圆通时会生成 shipments 快照。
+    </div>
+  </div>
+</div>
+
+
+<!-- ============================= -->
+<!-- 上传文件 -->
+<!-- ============================= -->
+<div class="card" style="margin-top:16px;">
+  <div class="card-head">
+    <div class="card-title"><%= t("上传文件") %></div>
+  </div>
+
+  <form method="post"
+        action="/portal/leads/import/preview"
+        enctype="multipart/form-data"
+        class="stack">
+
+    <div class="field">
+      <div class="label"><%= t("选择文件") %></div>
+      <input type="file"
+             name="xlsxFile"
+             accept=".xlsx,.xls,.csv"
+             required>
+      <div class="small muted" style="margin-top:6px;">
+        支持 .xlsx / .xls / .csv
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div style="display:flex;justify-content:flex-end;gap:10px;">
+      <a class="btn btn-outline" href="/portal/lead-pool">
+        <%= t("取消") %>
+      </a>
+      <button class="btn" type="submit">
+        <%= t("上传并预览") %>
+      </button>
+    </div>
+  </form>
+</div>
+
+
+<!-- ============================= -->
+<!-- 模板字段说明（可折叠） -->
+<!-- ============================= -->
+<div class="card" style="margin-top:16px;">
+  <div class="card-head" style="cursor:pointer;" onclick="toggleFields()">
+    <div class="card-title">
+      <%= t("模板字段说明（点击展开）") %>
+    </div>
+  </div>
+
+  <div id="fieldDesc" style="display:none;padding-top:10px;">
+
+    <div class="small">
+      <strong>公司信息：</strong><br>
+      company_name, company_name_en, amazon_company_name,
+      unified_code, vat_no, legal_person,
+      registered_capital, registration_date
+    </div>
+
+    <div class="small" style="margin-top:10px;">
+      <strong>联系方式：</strong><br>
+      contact_name, phone, email,
+      wechat, wechat_group_code, wechat_group_qr
+    </div>
+
+    <div class="small" style="margin-top:10px;">
+      <strong>营销字段：</strong><br>
+      category, website, amazon_shop_url,
+      workflow_stage, priority, customer_level, source
+    </div>
+
+    <div class="small" style="margin-top:10px;">
+      <strong>收件信息（写入 receiver_profiles）：</strong><br>
+      receiver_name, receiver_mobile,
+      receiver_province, receiver_city,
+      receiver_county, receiver_town,
+      receiver_address, receiver_postal_code
+    </div>
+
+  </div>
+</div>
+
+
+<script>
+function toggleFields(){
+  const el = document.getElementById("fieldDesc");
+  if(!el) return;
+  el.style.display = el.style.display === "none" ? "block" : "none";
+}
+</script>

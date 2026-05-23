@@ -1,0 +1,1125 @@
+<%
+  const safeRange = typeof range !== "undefined" && range ? String(range) : "90";
+  const safeKeyword = typeof keyword !== "undefined" && keyword ? String(keyword) : "";
+  const safeSignType = typeof signType !== "undefined" && signType ? String(signType) : "";
+  const safeRows = Array.isArray(rows) ? rows : [];
+  const safeSignTypeMonthlyStats = Array.isArray(signTypeMonthlyStats) ? signTypeMonthlyStats : [];
+
+  const totalSent = safeRows.filter(r => String(r.waybill_no || "").trim() !== "").length;
+  const totalSigned = safeRows.filter(r => !!r.signed_at || String(r.logistics_status || "").toUpperCase() === "SIGNED").length;
+  const totalException = safeRows.filter(r => String(r.logistics_status || "").toUpperCase() === "EXCEPTION").length;
+  const totalInTransit = safeRows.filter(r => String(r.logistics_status || "").toUpperCase() === "IN_TRANSIT").length;
+
+  const signTypeTotalMap = new Map();
+  safeRows.forEach(r => {
+    const type = String(r.signReceiveType || "").trim();
+    if (!type || type === "未签收") return;
+    signTypeTotalMap.set(type, Number(signTypeTotalMap.get(type) || 0) + 1);
+  });
+
+  const signTypeTotalStats = Array.from(signTypeTotalMap.entries())
+    .map(([signType, count]) => ({ signType, count }))
+    .sort((a, b) => b.count - a.count);
+%>
+
+<div class="yt-page">
+  <style>
+    .yt-page{
+      padding:24px 28px 40px;
+    }
+
+    .yt-head{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:18px;
+      margin-bottom:18px;
+      flex-wrap:wrap;
+    }
+
+    .yt-title{
+      font-size:20px;
+      line-height:1.3;
+      font-weight:600;
+      color:#0f172a;
+    }
+
+    .yt-sub{
+      margin-top:6px;
+      color:#64748b;
+      font-size:13px;
+      font-weight:400;
+    }
+
+    .yt-controls{
+      display:flex;
+      gap:14px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+
+    .yt-seg{
+      display:flex;
+      border:1px solid #e2e8f0;
+      border-radius:14px;
+      overflow:hidden;
+      background:#fff;
+    }
+
+    .yt-seg-btn{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      padding:10px 18px;
+      color:#475569;
+      text-decoration:none;
+      font-size:14px;
+      font-weight:500;
+      background:#fff;
+    }
+
+    .yt-seg-btn.active{
+      background:#0f172a;
+      color:#fff;
+    }
+
+    .yt-filter-form{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+
+    .yt-filter-form input,
+    .yt-filter-form select{
+      height:42px;
+      border:1px solid #e2e8f0;
+      border-radius:14px;
+      padding:0 14px;
+      outline:none;
+      font-size:14px;
+      font-weight:400;
+      color:#0f172a;
+      background:#fff;
+    }
+
+    .yt-filter-form input{
+      width:320px;
+    }
+
+    .yt-stats{
+      display:grid;
+      grid-template-columns:repeat(4,minmax(0,1fr));
+      gap:14px;
+      margin-bottom:18px;
+    }
+
+    .yt-stat{
+      background:#fff;
+      border:1px solid #e5e7eb;
+      border-radius:18px;
+      padding:16px 18px;
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+
+    .yt-stat-label{
+      font-size:13px;
+      color:#64748b;
+      font-weight:500;
+    }
+
+    .yt-stat-value{
+      font-size:28px;
+      line-height:1;
+      font-weight:600;
+      color:#0f172a;
+    }
+
+    .yt-stat.sent .yt-stat-value{ color:#0f172a; }
+    .yt-stat.signed .yt-stat-value{ color:#2563eb; }
+    .yt-stat.exception .yt-stat-value{ color:#dc2626; }
+    .yt-stat.transit .yt-stat-value{ color:#b45309; }
+
+    .yt-summary{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:16px;
+      margin-bottom:18px;
+    }
+
+    .yt-summary-card{
+      background:#fff;
+      border:1px solid #e5e7eb;
+      border-radius:20px;
+      padding:18px 20px;
+    }
+
+    .yt-summary-title{
+      font-size:15px;
+      font-weight:600;
+      color:#0f172a;
+      margin-bottom:12px;
+    }
+
+    .yt-summary-sub{
+      font-size:12px;
+      color:#64748b;
+      margin-bottom:12px;
+      line-height:1.6;
+    }
+
+    .yt-tag-list{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+    }
+
+    .yt-tag{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      min-height:34px;
+      padding:0 12px;
+      border-radius:999px;
+      background:#f8fafc;
+      border:1px solid #e2e8f0;
+      color:#334155;
+      font-size:13px;
+      font-weight:500;
+    }
+
+    .yt-month-list{
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+      max-height:320px;
+      overflow:auto;
+      padding-right:4px;
+    }
+
+    .yt-month-item{
+      border:1px solid #eef2f7;
+      border-radius:16px;
+      padding:14px;
+      background:#fafcff;
+    }
+
+    .yt-month-head{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      margin-bottom:10px;
+      flex-wrap:wrap;
+    }
+
+    .yt-month-name{
+      font-size:14px;
+      font-weight:600;
+      color:#0f172a;
+    }
+
+    .yt-month-total{
+      font-size:12px;
+      color:#64748b;
+      font-weight:500;
+    }
+
+    .yt-card{
+      background:#fff;
+      border:1px solid #e5e7eb;
+      border-radius:20px;
+      overflow-x:auto;
+      overflow-y:hidden;
+    }
+
+    .yt-table{
+      width:100%;
+      min-width:1760px;
+      border-collapse:collapse;
+      table-layout:fixed;
+    }
+
+    .yt-table thead th{
+      text-align:left;
+      padding:16px 18px;
+      border-bottom:1px solid #eef2f7;
+      color:#64748b;
+      font-size:13px;
+      font-weight:600;
+      background:#fff;
+    }
+
+    .yt-table tbody td{
+      padding:18px;
+      border-bottom:1px solid #f1f5f9;
+      vertical-align:middle;
+      font-size:14px;
+      font-weight:400;
+      color:#0f172a;
+    }
+
+    .yt-table tbody tr:last-child td{
+      border-bottom:none;
+    }
+
+    .yt-strong{
+      font-weight:600;
+      color:#0f172a;
+      line-height:1.45;
+    }
+
+    .yt-muted{
+      color:#64748b;
+      font-size:13px;
+      font-weight:400;
+    }
+
+    .yt-tiny{
+      font-size:12px;
+    }
+
+    .yt-mono{
+      font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+      font-weight:500;
+    }
+
+    .yt-link{
+      cursor:pointer;
+      border-bottom:1px dashed #cbd5e1;
+    }
+
+    .yt-pill{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      min-width:74px;
+      height:34px;
+      padding:0 14px;
+      border-radius:999px;
+      border:1px solid #e2e8f0;
+      background:#f8fafc;
+      color:#334155;
+      font-size:13px;
+      font-weight:500;
+    }
+
+    .yt-pill.ok{
+      border-color:#bfdbfe;
+      background:#eff6ff;
+      color:#1d4ed8;
+    }
+
+    .yt-pill.bad{
+      border-color:#fecaca;
+      background:#fff5f5;
+      color:#dc2626;
+    }
+
+    .yt-pill.warn{
+      border-color:#fde68a;
+      background:#fffbeb;
+      color:#b45309;
+    }
+
+    .yt-badge{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      min-height:24px;
+      padding:2px 10px;
+      border-radius:999px;
+      font-size:12px;
+      font-weight:500;
+      background:#f8fafc;
+      color:#475569;
+      border:1px solid #e2e8f0;
+      white-space:normal;
+      line-height:1.4;
+    }
+
+    .yt-badge.ok{
+      background:#eff6ff;
+      color:#1d4ed8;
+      border-color:#bfdbfe;
+    }
+
+    .yt-badge.bad{
+      background:#fff5f5;
+      color:#dc2626;
+      border-color:#fecaca;
+    }
+
+    .yt-badge.warn{
+      background:#fffbeb;
+      color:#b45309;
+      border-color:#fde68a;
+    }
+
+    .yt-btn{
+      height:40px;
+      padding:0 16px;
+      border:none;
+      border-radius:12px;
+      background:#0f172a;
+      color:#fff;
+      cursor:pointer;
+      font-size:14px;
+      font-weight:600;
+      text-decoration:none;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+    }
+
+    .yt-btn:hover{
+      opacity:.95;
+    }
+
+    .yt-btn:disabled{
+      opacity:.55;
+      cursor:not-allowed;
+    }
+
+    .yt-btn.ghost{
+      background:#fff;
+      color:#0f172a;
+      border:1px solid #dbe3ee;
+      font-weight:500;
+    }
+
+    .yt-actions{
+      display:flex;
+      gap:8px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+
+    .yt-empty-row{
+      padding:28px !important;
+      text-align:center;
+      color:#64748b;
+    }
+
+    .yt-empty{
+      color:#64748b;
+      font-size:13px;
+    }
+
+    .yt-sticky-right{
+      position:sticky;
+      right:0;
+      background:#fff;
+      z-index:2;
+      box-shadow:-8px 0 16px rgba(15,23,42,.04);
+    }
+
+    .yt-modal{
+      position:fixed;
+      inset:0;
+      background:rgba(15,23,42,.28);
+      display:none;
+      align-items:center;
+      justify-content:center;
+      padding:24px;
+      z-index:9999;
+    }
+
+    .yt-modal.show{
+      display:flex;
+    }
+
+    .yt-modal-card{
+      width:min(960px, 100%);
+      max-height:86vh;
+      overflow:auto;
+      background:#fff;
+      border-radius:22px;
+      border:1px solid #e5e7eb;
+      box-shadow:0 20px 60px rgba(15,23,42,.16);
+    }
+
+    .yt-modal-head{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      padding:18px 20px;
+      border-bottom:1px solid #eef2f7;
+      position:sticky;
+      top:0;
+      background:#fff;
+      z-index:1;
+    }
+
+    .yt-modal-title{
+      font-size:18px;
+      font-weight:600;
+      color:#0f172a;
+    }
+
+    .yt-close{
+      border:none;
+      background:#fff;
+      width:38px;
+      height:38px;
+      border-radius:12px;
+      cursor:pointer;
+      font-size:18px;
+      color:#475569;
+      border:1px solid #e2e8f0;
+    }
+
+    .yt-modal-body{
+      padding:20px;
+      display:grid;
+      grid-template-columns:1.2fr .8fr;
+      gap:18px;
+    }
+
+    .yt-panel{
+      border:1px solid #eef2f7;
+      border-radius:18px;
+      padding:16px;
+      background:#fff;
+    }
+
+    .yt-panel-title{
+      font-size:14px;
+      font-weight:600;
+      color:#0f172a;
+      margin-bottom:12px;
+    }
+
+    .yt-kv{
+      display:grid;
+      grid-template-columns:110px 1fr;
+      gap:8px 12px;
+      font-size:13px;
+      line-height:1.6;
+    }
+
+    .yt-kv-key{
+      color:#64748b;
+      font-weight:500;
+    }
+
+    .yt-kv-val{
+      color:#0f172a;
+      word-break:break-word;
+    }
+
+    .yt-track-list{
+      display:flex;
+      flex-direction:column;
+      gap:14px;
+    }
+
+    .yt-track-row{
+      position:relative;
+      padding-left:24px;
+      min-height:32px;
+    }
+
+    .yt-track-row:before{
+      content:"";
+      position:absolute;
+      left:6px;
+      top:6px;
+      width:10px;
+      height:10px;
+      border-radius:50%;
+      background:#cbd5e1;
+    }
+
+    .yt-track-row:after{
+      content:"";
+      position:absolute;
+      left:10px;
+      top:20px;
+      bottom:-18px;
+      width:1px;
+      background:#e2e8f0;
+    }
+
+    .yt-track-row:last-child:after{
+      display:none;
+    }
+
+    .yt-track-row.active:before{
+      background:#2563eb;
+      box-shadow:0 0 0 4px rgba(37,99,235,.12);
+    }
+
+    .yt-track-time{
+      font-size:12px;
+      color:#64748b;
+      font-weight:500;
+      margin-bottom:3px;
+      font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    }
+
+    .yt-track-desc{
+      font-size:14px;
+      color:#0f172a;
+      line-height:1.55;
+      font-weight:500;
+    }
+
+    .yt-track-place{
+      font-size:12px;
+      color:#64748b;
+      margin-top:3px;
+    }
+
+    .yt-raw{
+      margin-top:12px;
+      padding:12px;
+      border-radius:14px;
+      border:1px solid #eef2f7;
+      background:#f8fafc;
+      white-space:pre-wrap;
+      word-break:break-word;
+      font-size:12px;
+      line-height:1.55;
+      color:#334155;
+      max-height:280px;
+      overflow:auto;
+      font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    }
+
+    @media (max-width: 1180px){
+      .yt-summary{
+        grid-template-columns:1fr;
+      }
+    }
+
+    @media (max-width: 1100px){
+      .yt-stats{
+        grid-template-columns:repeat(2,minmax(0,1fr));
+      }
+    }
+
+    @media (max-width: 980px){
+      .yt-modal-body{
+        grid-template-columns:1fr;
+      }
+
+      .yt-filter-form input{
+        width:240px;
+      }
+    }
+
+    @media (max-width: 640px){
+      .yt-stats{
+        grid-template-columns:1fr;
+      }
+    }
+  </style>
+
+  <div class="yt-head">
+    <div>
+      <div class="yt-title">圆通轨迹汇总</div>
+      <div class="yt-sub">自动每2小时更新；签收后停止。支持单票手动刷新。支持查看 API 同步诊断、签收方式和原始轨迹。</div>
+    </div>
+
+    <div class="yt-controls">
+      <div class="yt-seg">
+        <a class="yt-seg-btn <%= String(safeRange).toLowerCase()==='all' ? '' : 'active' %>" href="/shipments/tracks?range=90&keyword=<%= encodeURIComponent(safeKeyword) %>&signType=<%= encodeURIComponent(safeSignType) %>">近90天</a>
+        <a class="yt-seg-btn <%= String(safeRange).toLowerCase()==='all' ? 'active' : '' %>" href="/shipments/tracks?range=all&keyword=<%= encodeURIComponent(safeKeyword) %>&signType=<%= encodeURIComponent(safeSignType) %>">全部</a>
+      </div>
+
+      <form class="yt-filter-form" method="get" action="/shipments/tracks">
+        <input type="hidden" name="range" value="<%= safeRange %>">
+
+        <input
+          id="q"
+          name="keyword"
+          value="<%= safeKeyword %>"
+          placeholder="搜索：公司 / 收件人 / 城市 / 运单号 / 状态 / 签收方式 / 原始签收文本"
+          autocomplete="off"
+        />
+
+        <select name="signType">
+          <option value="">全部签收方式</option>
+          <option value="前台" <%= safeSignType === '前台' ? 'selected' : '' %>>前台</option>
+          <option value="保安室" <%= safeSignType === '保安室' ? 'selected' : '' %>>保安室</option>
+          <option value="门口" <%= safeSignType === '门口' ? 'selected' : '' %>>门口</option>
+          <option value="快递架" <%= safeSignType === '快递架' ? 'selected' : '' %>>快递架</option>
+          <option value="驿站/代收点" <%= safeSignType === '驿站/代收点' ? 'selected' : '' %>>驿站/代收点</option>
+          <option value="同事/他人代收" <%= safeSignType === '同事/他人代收' ? 'selected' : '' %>>同事/他人代收</option>
+          <option value="本人" <%= safeSignType === '本人' ? 'selected' : '' %>>本人</option>
+          <option value="家人" <%= safeSignType === '家人' ? 'selected' : '' %>>家人</option>
+          <option value="其他" <%= safeSignType === '其他' ? 'selected' : '' %>>其他</option>
+          <option value="未识别" <%= safeSignType === '未识别' ? 'selected' : '' %>>未识别</option>
+          <option value="未签收" <%= safeSignType === '未签收' ? 'selected' : '' %>>未签收</option>
+        </select>
+
+        <button class="yt-btn" type="submit">筛选</button>
+        <a class="yt-btn ghost" href="/shipments/tracks?range=<%= encodeURIComponent(safeRange) %>">清空</a>
+      </form>
+    </div>
+  </div>
+
+  <div class="yt-stats">
+    <div class="yt-stat sent">
+      <div class="yt-stat-label">发了多少</div>
+      <div class="yt-stat-value" id="statSent"><%= totalSent %></div>
+    </div>
+
+    <div class="yt-stat signed">
+      <div class="yt-stat-label">签收多少</div>
+      <div class="yt-stat-value" id="statSigned"><%= totalSigned %></div>
+    </div>
+
+    <div class="yt-stat exception">
+      <div class="yt-stat-label">异常多少</div>
+      <div class="yt-stat-value" id="statException"><%= totalException %></div>
+    </div>
+
+    <div class="yt-stat transit">
+      <div class="yt-stat-label">在途多少</div>
+      <div class="yt-stat-value" id="statTransit"><%= totalInTransit %></div>
+    </div>
+  </div>
+
+  <div class="yt-summary">
+    <div class="yt-summary-card">
+      <div class="yt-summary-title">签收方式总汇总</div>
+      <div class="yt-summary-sub">基于当前筛选结果统计。未签收的不计入签收方式分布。</div>
+
+      <% if (!signTypeTotalStats.length) { %>
+        <div class="yt-empty">当前筛选条件下暂无签收方式汇总</div>
+      <% } else { %>
+        <div class="yt-tag-list" id="signTypeTotalBox">
+          <% signTypeTotalStats.forEach(item => { %>
+            <span class="yt-tag" data-sign-total="<%= item.signType %>">
+              <span><%= item.signType %></span>
+              <strong><%= item.count %></strong>
+            </span>
+          <% }) %>
+        </div>
+      <% } %>
+    </div>
+
+    <div class="yt-summary-card">
+      <div class="yt-summary-title">签收方式按月汇总</div>
+      <div class="yt-summary-sub">按签收时间归档，便于看每个月签收落点分布。</div>
+
+      <% if (!safeSignTypeMonthlyStats.length) { %>
+        <div class="yt-empty">当前筛选条件下暂无月度签收方式统计</div>
+      <% } else { %>
+        <div class="yt-month-list" id="monthlyBox">
+          <% safeSignTypeMonthlyStats.forEach(m => { %>
+            <div class="yt-month-item">
+              <div class="yt-month-head">
+                <div class="yt-month-name"><%= m.month %></div>
+                <div class="yt-month-total">总签收 <%= m.total %></div>
+              </div>
+
+              <div class="yt-tag-list">
+                <% (m.items || []).forEach(it => { %>
+                  <span class="yt-tag">
+                    <span><%= it.signType %></span>
+                    <strong><%= it.count %></strong>
+                  </span>
+                <% }) %>
+              </div>
+            </div>
+          <% }) %>
+        </div>
+      <% } %>
+    </div>
+  </div>
+
+  <div class="yt-card">
+    <table class="yt-table" id="tbl">
+      <thead>
+        <tr>
+          <th style="width:54px;">ID</th>
+          <th style="width:250px;">公司</th>
+          <th style="width:120px;">收件人</th>
+          <th style="width:110px;">城市</th>
+          <th style="width:210px;">运单号</th>
+          <th style="width:120px;">状态</th>
+          <th style="width:140px;">签收方式</th>
+          <th style="width:220px;">原始签收文本</th>
+          <th style="width:180px;">更新时间</th>
+          <th style="width:170px;">同步判断</th>
+          <th class="yt-sticky-right" style="width:190px;">操作</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <% if (!safeRows.length) { %>
+          <tr><td colspan="11" class="yt-empty-row">暂无数据</td></tr>
+        <% } %>
+
+        <% safeRows.forEach(r => { %>
+          <% const st = String(r.logistics_status || 'UNKNOWN').toUpperCase(); %>
+          <% const isSigned = !!r.signed_at || st === 'SIGNED'; %>
+          <% const company = (r.company_name || '-'); %>
+          <% const receiver = (r.receiver_name || '-'); %>
+          <% const city = (r.receiver_city || '-'); %>
+          <% const waybill = (r.waybill_no || '-'); %>
+          <% const diag = r.diagnosis || null; %>
+          <% const signType = r.signReceiveType || (isSigned ? '未识别' : '未签收'); %>
+          <% const signRaw = r.signReceiveRaw || '-'; %>
+
+          <tr class="yt-row"
+              data-company="<%= String(company).toLowerCase() %>"
+              data-receiver="<%= String(receiver).toLowerCase() %>"
+              data-city="<%= String(city).toLowerCase() %>"
+              data-waybill="<%= String(waybill).toLowerCase() %>"
+              data-status="<%= st.toLowerCase() %>"
+              data-sign-type="<%= String(signType).toLowerCase() %>"
+              data-sign-raw="<%= String(signRaw).toLowerCase() %>">
+
+            <td class="yt-mono"><%= r.id %></td>
+
+            <td>
+              <div class="yt-strong"><%= company %></div>
+              <div class="yt-muted yt-tiny">batch: <%= r.batch_id || '-' %> · lead: <%= r.lead_id || '-' %></div>
+            </td>
+
+            <td><div class="yt-strong"><%= receiver %></div></td>
+            <td><div><%= city %></div></td>
+
+            <td class="yt-mono">
+              <span class="yt-link" onclick="copyText('<%= String(r.waybill_no || '') %>')"><%= waybill %></span>
+              <% if (r.waybill_no) { %>
+                <span class="yt-muted yt-tiny">点击复制</span>
+              <% } %>
+            </td>
+
+            <td>
+              <% if (isSigned) { %>
+                <span class="yt-pill ok">已签收</span>
+              <% } else if (st === 'IN_TRANSIT') { %>
+                <span class="yt-pill">运输中</span>
+              <% } else if (st === 'EXCEPTION') { %>
+                <span class="yt-pill bad">异常</span>
+              <% } else { %>
+                <span class="yt-pill warn">未知</span>
+              <% } %>
+            </td>
+
+            <td>
+              <% if (signType === '前台' || signType === '保安室' || signType === '门口' || signType === '快递架' || signType === '驿站/代收点' || signType === '同事/他人代收' || signType === '本人' || signType === '家人') { %>
+                <span class="yt-badge ok"><%= signType %></span>
+              <% } else if (signType === '未签收') { %>
+                <span class="yt-badge warn"><%= signType %></span>
+              <% } else { %>
+                <span class="yt-badge"><%= signType %></span>
+              <% } %>
+            </td>
+
+            <td>
+              <div class="yt-muted"><%= signRaw %></div>
+            </td>
+
+            <td class="yt-mono">
+              <%= r.track_updated_at ? new Date(r.track_updated_at).toLocaleString() : '-' %>
+            </td>
+
+            <td>
+              <% if (diag) { %>
+                <span class="yt-badge <%= diag.level || '' %>"><%= diag.label || '-' %></span>
+              <% } else { %>
+                <span class="yt-badge">未诊断</span>
+              <% } %>
+            </td>
+
+            <td class="yt-sticky-right">
+              <div class="yt-actions">
+                <button class="yt-btn ghost" type="button" onclick="showTrack(<%= r.id %>)">查看</button>
+
+                <button class="yt-btn"
+                        data-btn-id="<%= r.id %>"
+                        onclick="refreshOne(<%= r.id %>)"
+                        <%= !r.waybill_no ? 'disabled' : '' %>>
+                  刷新
+                </button>
+              </div>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div id="trackModal" class="yt-modal" onclick="backdropClose(event)">
+  <div class="yt-modal-card">
+    <div class="yt-modal-head">
+      <div class="yt-modal-title">轨迹详情</div>
+      <button class="yt-close" type="button" onclick="closeTrack()">×</button>
+    </div>
+
+    <div class="yt-modal-body">
+      <div class="yt-panel">
+        <div class="yt-panel-title">轨迹时间线</div>
+        <div id="trackList" class="yt-track-list"></div>
+      </div>
+
+      <div class="yt-panel">
+        <div class="yt-panel-title">同步诊断</div>
+
+        <div class="yt-kv" id="trackMeta">
+          <div class="yt-kv-key">运单号</div>
+          <div class="yt-kv-val">-</div>
+        </div>
+
+        <details style="margin-top:14px;">
+          <summary class="yt-muted" style="cursor:pointer;">查看原始 API 返回</summary>
+          <div id="rawBox" class="yt-raw"></div>
+        </details>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function clearQ(){
+  const el = document.getElementById('q');
+  if (!el) return;
+  el.value = '';
+  el.dispatchEvent(new Event('input'));
+}
+
+function collectVisibleRows() {
+  return Array.from(document.querySelectorAll('#tbl tbody tr.yt-row'))
+    .filter(tr => tr.style.display !== 'none');
+}
+
+function updateVisibleStats() {
+  const rows = collectVisibleRows();
+
+  let sent = 0;
+  let signed = 0;
+  let exceptionCount = 0;
+  let transit = 0;
+
+  rows.forEach(tr => {
+    const waybill = String(tr.dataset.waybill || '').trim();
+    const status = String(tr.dataset.status || '').trim().toUpperCase();
+
+    if (waybill && waybill !== '-') sent++;
+    if (status === 'SIGNED') signed++;
+    if (status === 'EXCEPTION') exceptionCount++;
+    if (status === 'IN_TRANSIT') transit++;
+  });
+
+  const s1 = document.getElementById('statSent');
+  const s2 = document.getElementById('statSigned');
+  const s3 = document.getElementById('statException');
+  const s4 = document.getElementById('statTransit');
+
+  if (s1) s1.textContent = sent;
+  if (s2) s2.textContent = signed;
+  if (s3) s3.textContent = exceptionCount;
+  if (s4) s4.textContent = transit;
+}
+
+function updateVisibleSignTypeSummary() {
+  const rows = collectVisibleRows();
+  const box = document.getElementById('signTypeTotalBox');
+  if (!box) return;
+
+  const map = new Map();
+
+  rows.forEach(tr => {
+    const signType = String(tr.dataset.signType || '').trim();
+    const status = String(tr.dataset.status || '').trim().toUpperCase();
+
+    if (!signType || signType === '未签收') return;
+    if (status !== 'SIGNED') return;
+
+    map.set(signType, Number(map.get(signType) || 0) + 1);
+  });
+
+  const list = Array.from(map.entries())
+    .map(([signType, count]) => ({ signType, count }))
+    .sort((a, b) => b.count - a.count);
+
+  if (!list.length) {
+    box.innerHTML = '<div class="yt-empty">当前可见结果暂无签收方式汇总</div>';
+    return;
+  }
+
+  box.innerHTML = list.map(item => `
+    <span class="yt-tag" data-sign-total="${escapeHtml(item.signType)}">
+      <span>${escapeHtml(item.signType)}</span>
+      <strong>${item.count}</strong>
+    </span>
+  `).join('');
+}
+
+function updateAllVisibleSummary() {
+  updateVisibleStats();
+  updateVisibleSignTypeSummary();
+}
+
+async function refreshOne(id){
+  const btn = document.querySelector(`[data-btn-id="${id}"]`);
+  if (btn) {
+    btn.disabled = true;
+    btn.dataset.old = btn.textContent;
+    btn.textContent = '刷新中…';
+  }
+
+  try{
+    const res = await fetch(`/shipments/${id}/track/refresh`, { method:'POST' });
+    const json = await res.json();
+
+    if (!json.ok) {
+      throw new Error(json.error || 'refresh failed');
+    }
+
+    location.reload();
+  }catch(e){
+    alert('刷新失败：' + (e.message || e));
+  }finally{
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = btn.dataset.old || '刷新';
+    }
+  }
+}
+
+async function showTrack(id){
+  try{
+    const res = await fetch(`/shipments/${id}/track/detail`);
+    const json = await res.json();
+
+    if (!json.ok) {
+      throw new Error(json.error || '读取轨迹失败');
+    }
+
+    const shipment = json.shipment || {};
+    const summary = json.summary || {};
+    const nodes = Array.isArray(summary.nodes) ? summary.nodes.slice().reverse() : [];
+    const diagnosis = summary.diagnosis || null;
+
+    const list = document.getElementById('trackList');
+    const meta = document.getElementById('trackMeta');
+    const rawBox = document.getElementById('rawBox');
+
+    if (!nodes.length) {
+      list.innerHTML = '<div class="yt-empty">暂无轨迹节点</div>';
+    } else {
+      list.innerHTML = nodes.map((n, idx) => `
+        <div class="yt-track-row ${idx === 0 ? 'active' : ''}">
+          <div class="yt-track-time">${escapeHtml(n.time || '-')}</div>
+          <div class="yt-track-desc">${escapeHtml(n.desc || '-')}</div>
+          ${n.place ? `<div class="yt-track-place">${escapeHtml(n.place)}</div>` : ''}
+        </div>
+      `).join('');
+    }
+
+    const statusText = shipment.signed_at || summary.statusText === 'SIGNED'
+      ? '已签收'
+      : summary.statusText === 'IN_TRANSIT'
+        ? '运输中'
+        : summary.statusText === 'EXCEPTION'
+          ? '异常'
+          : '未知';
+
+    meta.innerHTML = `
+      <div class="yt-kv-key">运单号</div>
+      <div class="yt-kv-val">${escapeHtml(shipment.waybill_no || '-')}</div>
+
+      <div class="yt-kv-key">数据库状态</div>
+      <div class="yt-kv-val">${escapeHtml(statusText)}</div>
+
+      <div class="yt-kv-key">签收方式</div>
+      <div class="yt-kv-val">${escapeHtml(summary.signReceiveType || (statusText === '已签收' ? '未识别' : '未签收'))}</div>
+
+      <div class="yt-kv-key">原始签收文本</div>
+      <div class="yt-kv-val">${escapeHtml(summary.signReceiveRaw || '-')}</div>
+
+      <div class="yt-kv-key">同步判断</div>
+      <div class="yt-kv-val">${escapeHtml(diagnosis?.label || '-')}</div>
+
+      <div class="yt-kv-key">诊断说明</div>
+      <div class="yt-kv-val">${escapeHtml(diagnosis?.message || '-')}</div>
+
+      <div class="yt-kv-key">最新节点时间</div>
+      <div class="yt-kv-val">${escapeHtml(summary.latestTime || '-')}</div>
+
+      <div class="yt-kv-key">最新节点内容</div>
+      <div class="yt-kv-val">${escapeHtml(summary.latestDesc || '-')}</div>
+
+      <div class="yt-kv-key">签收节点时间</div>
+      <div class="yt-kv-val">${escapeHtml(summary.signedTime || '-')}</div>
+
+      <div class="yt-kv-key">节点数量</div>
+      <div class="yt-kv-val">${escapeHtml(String(nodes.length || 0))}</div>
+
+      <div class="yt-kv-key">最近刷新时间</div>
+      <div class="yt-kv-val">${escapeHtml(shipment.track_updated_at ? new Date(shipment.track_updated_at).toLocaleString() : '-')}</div>
+    `;
+
+    rawBox.textContent = JSON.stringify(json.raw || null, null, 2);
+    document.getElementById('trackModal').classList.add('show');
+  }catch(e){
+    alert('读取轨迹失败：' + (e.message || e));
+  }
+}
+
+function closeTrack(){
+  document.getElementById('trackModal').classList.remove('show');
+}
+
+function backdropClose(e){
+  if (e.target && e.target.id === 'trackModal') {
+    closeTrack();
+  }
+}
+
+async function copyText(text){
+  if (!text) return;
+  try{
+    await navigator.clipboard.writeText(text);
+  }catch{
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+  }
+}
+
+function escapeHtml(str){
+  return String(str || '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+document.getElementById('q')?.addEventListener('input', function(){
+  const v = (this.value || '').toLowerCase().trim();
+
+  document.querySelectorAll('#tbl tbody tr.yt-row').forEach(tr => {
+    const hay = [
+      tr.dataset.company,
+      tr.dataset.receiver,
+      tr.dataset.city,
+      tr.dataset.waybill,
+      tr.dataset.status,
+      tr.dataset.signType,
+      tr.dataset.signRaw
+    ].join(' ');
+
+    tr.style.display = (!v || hay.includes(v)) ? '' : 'none';
+  });
+
+  updateAllVisibleSummary();
+});
+
+updateAllVisibleSummary();
+</script>

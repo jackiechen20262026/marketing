@@ -1,0 +1,88 @@
+<%
+// views/portal/lead_followup_new.ejs
+%>
+
+<div class="page">
+  <div class="page__header page__header--sticky">
+    <div>
+      <div class="h1"><%= t("新增跟进") %></div>
+      <div class="sub"><%= (lead && lead.company_name) ? lead.company_name : ('#' + (lead && lead.id)) %></div>
+    </div>
+
+    <div class="page__actions">
+      <a class="btn btn--ghost" href="/portal/leads/<%= lead.id %>"><%= t("返回详情") %></a>
+      <a class="btn btn--ghost" href="/portal/leads/<%= lead.id %>/plans"><%= t("计划页") %></a>
+      <a class="btn btn--primary" href="/portal/leads/<%= lead.id %>/visit"><%= t("拜访打卡") %></a>
+    </div>
+  </div>
+
+  <% if (success) { %><div class="alert alert--ok"><%= success %></div><% } %>
+  <% if (error) { %><div class="alert alert--err"><%= error %></div><% } %>
+
+  <div class="card">
+    <div class="card__hd">
+      <div class="card__title"><%= t("写入跟进信息") %></div>
+    </div>
+
+    <form method="post" action="/portal/leads/<%= lead.id %>/followups/new" class="stack">
+      <div class="grid2">
+        <div class="field">
+          <div class="label"><%= t("跟进类型") %></div>
+          <select class="select" name="followup_type">
+            <option value="call">电话</option>
+            <option value="wechat">微信</option>
+            <option value="email">邮件</option>
+            <option value="other" selected>其他</option>
+          </select>
+          <div class="muted small"><%= t("拜访请用右上角【拜访打卡】（必须定位+照片）") %></div>
+        </div>
+
+        <div class="field">
+          <div class="label"><%= t("下次跟进时间") %></div>
+          <input class="input" type="datetime-local" name="next_followup_at">
+        </div>
+      </div>
+
+      <div class="field">
+        <div class="label"><%= t("跟进内容") %> *</div>
+        <textarea class="textarea" name="content" rows="6" required></textarea>
+      </div>
+
+      <div class="field">
+        <label class="check">
+          <input type="checkbox" name="need_analysis" value="1">
+          <span><%= t("需要分析") %></span>
+        </label>
+        <div class="muted small"><%= t("勾选后填写分析内容（可空）") %></div>
+      </div>
+
+      <div class="field">
+        <div class="label"><%= t("分析内容") %></div>
+        <textarea class="textarea" name="analysis" rows="4"></textarea>
+      </div>
+
+      <button class="btn btn--primary" type="submit"><%= t("提交跟进") %></button>
+    </form>
+  </div>
+</div>
+
+<style>
+  .page__header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:14px;}
+  .page__header--sticky{position:sticky;top:0;z-index:20;background:#f8fafc;padding:14px 0;border-bottom:1px solid #eef2f7;}
+  .page__actions{display:flex;gap:10px;flex-wrap:wrap;}
+  .h1{font-size:22px;font-weight:700;}
+  .sub{margin-top:6px;font-size:12px;color:#6b7280;}
+  .small{font-size:12px;}
+  .muted{color:#6b7280;}
+
+  .alert{margin:0 0 12px 0;padding:10px 12px;border-radius:14px;font-size:13px;border:1px solid #e5e7eb;background:#fff;}
+  .alert--ok{border-color:#bbf7d0;background:#f0fdf4;color:#166534;}
+  .alert--err{border-color:#fecaca;background:#fef2f2;color:#991b1b;}
+
+  .stack{display:flex;flex-direction:column;gap:10px;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .check{display:flex;align-items:center;gap:10px;font-size:13px;}
+  @media (max-width: 980px){
+    .grid2{grid-template-columns:1fr;}
+  }
+</style>

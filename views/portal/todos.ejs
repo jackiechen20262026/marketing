@@ -1,0 +1,198 @@
+<%
+const rowsSafe = rows || [];
+const pg = pagination || { page: 1, pageSize: 20, total: 0, totalPages: 1 };
+const scopeSafe = scope || 'overdue';
+const keywordSafe = keyword || '';
+const qsBase = `scope=${encodeURIComponent(scopeSafe)}&keyword=${encodeURIComponent(keywordSafe)}`;
+
+function fmtYMDHM(dRaw){
+  if (!dRaw) return '';
+  const d = new Date(dRaw);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  const hh = String(d.getHours()).padStart(2,'0');
+  const mi = String(d.getMinutes()).padStart(2,'0');
+  return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
+}
+%>
+
+<div class="page">
+  <div class="page__header page__header--sticky">
+    <div>
+      <div class="h1">代办</div>
+      <div class="sub">到期自动进入代办；微信任务完成必须上传截图（图片/PDF）</div>
+    </div>
+    <div class="page__actions">
+      <a class="btn btn--ghost" href="/portal/leads/demand">返回需求客人</a>
+      <a class="btn btn--ghost" href="/portal/lead-pool">返回线索池</a>
+    </div>
+  </div>
+
+  <% if (success) { %><div class="alert alert--ok"><%= success %></div><% } %>
+  <% if (error) { %><div class="alert alert--err"><%= error %></div><% } %>
+
+  <div class="card">
+    <div class="card__hd">
+      <div class="card__title">筛选</div>
+    </div>
+
+    <form class="filters" method="get" action="/portal/todos">
+      <select class="input" name="scope">
+        <option value="overdue" <%= scopeSafe==='overdue'?'selected':'' %>>已超期</option>
+        <option value="today" <%= scopeSafe==='today'?'selected':'' %>>今天到期</option>
+        <option value="week" <%= scopeSafe==='week'?'selected':'' %>>7天内</option>
+        <option value="all" <%= scopeSafe==='all'?'selected':'' %>>全部</option>
+      </select>
+      <input class="input" name="keyword" value="<%= keywordSafe %>" placeholder="搜索：公司/联系人/微信/电话">
+      <button class="btn btn--primary" type="submit">查询</button>
+      <a class="btn btn--ghost" href="/portal/todos">清空</a>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="card__hd">
+      <div class="card__title">列表</div>
+      <div class="muted small">共 <%= pg.total %> 条</div>
+    </div>
+
+    <div class="table">
+      <div class="tr tr--head">
+        <div class="td">公司</div>
+        <div class="td">任务</div>
+        <div class="td">到期</div>
+        <div class="td">级别</div>
+        <div class="td">阶段</div>
+        <div class="td">操作</div>
+      </div>
+
+      <% if (!rowsSafe.length) { %>
+        <div class="empty muted">暂无代办</div>
+      <% } %>
+
+      <% rowsSafe.forEach(r => { 
+          const due = r.due_at ? new Date(r.due_at) : null;
+          const now = new Date();
+          const overdueDays = due ? Math.floor((now.getTime() - due.getTime())/(24*3600*1000)) : null;
+          const rowCls = (overdueDays!=null && overdueDays>0) ? 'tr--risk' : (overdueDays===0 ? 'tr--today' : '');
+          const name = (TASK_NAME_MAP && TASK_NAME_MAP[r.task_type]) ? TASK_NAME_MAP[r.task_type] : (r.task_type||'-');
+      %>
+        <div class="tr <%= rowCls %>">
+          <div class="td strong">
+            <div><%= r.company_name || '-' %></div>
+            <div class="muted small"><%= r.contact_name || '' %> <%= r.wechat ? (' · ' + r.wechat) : '' %></div>
+            <% if (r.evidence_file) { %>
+              <div class="muted small">
+                证据：<a class="link" href="<%= r.evidence_file %>" target="_blank">查看</a>
+              </div>
+            <% } %>
+          </div>
+
+          <div class="td">
+            <div class="task-name"><%= name %></div>
+            <div class="muted small mono"><%= r.task_type %></div>
+          </div>
+
+          <div class="td mono">
+            <div><%= fmtYMDHM(r.due_at) %></div>
+            <div class="small <%= overdueDays>0?'due--over':(overdueDays===0?'due--today':'due--ok') %>">
+              <% if (overdueDays==null) { %>—<% } 
+                 else if (overdueDays>0) { %>超期 <%= overdueDays %> 天<% }
+                 else if (overdueDays===0) { %>今天到期<% }
+                 else { %>剩余 <%= Math.abs(overdueDays) %> 天<% } %>
+            </div>
+          </div>
+
+          <div class="td"><span class="tag"><%= r.customer_level || '-' %></span></div>
+          <div class="td"><span class="tag"><%= r.workflow_stage || '-' %></span></div>
+
+          <div class="td actions">
+            <a class="link" href="/portal/leads/<%= r.lead_id %>">详情</a>
+            <a class="link" href="/portal/leads/<%= r.lead_id %>/plans">计划</a>
+
+            <form class="inline" method="post" action="/portal/todos/<%= r.id %>/complete" enctype="multipart/form-data">
+              <input type="hidden" name="back" value="/portal/todos?<%= qsBase %>&page=<%= pg.page %>">
+              <input type="hidden" name="task_type" value="<%= r.task_type %>">
+              <input class="input input--mini" name="remark" placeholder="备注(可选)" />
+              <input class="file file--mini" type="file" name="evidence" accept="image/*,application/pdf" />
+              <button class="btn btn--ghost btn--mini" type="submit">完成</button>
+            </form>
+
+            <form class="inline" method="post" action="/portal/todos/<%= r.id %>/skip">
+              <input type="hidden" name="back" value="/portal/todos?<%= qsBase %>&page=<%= pg.page %>">
+              <input class="input input--mini" name="remark" placeholder="跳过原因" />
+              <button class="btn btn--ghost btn--mini" type="submit">跳过</button>
+            </form>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+
+    <div class="pager">
+      <div class="muted small">第 <%= pg.page %> / <%= pg.totalPages %> 页</div>
+      <div class="pager__actions">
+        <a class="btn btn--ghost <%= pg.page<=1 ? 'btn--disabled' : '' %>"
+           href="/portal/todos?<%= qsBase %>&page=<%= Math.max(1, pg.page-1) %>">上一页</a>
+        <a class="btn btn--ghost <%= pg.page>=pg.totalPages ? 'btn--disabled' : '' %>"
+           href="/portal/todos?<%= qsBase %>&page=<%= Math.min(pg.totalPages, pg.page+1) %>">下一页</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .page__header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:14px;}
+  .page__header--sticky{position:sticky;top:0;z-index:20;background:#f8fafc;padding:14px 0;border-bottom:1px solid #eef2f7;}
+  .page__actions{display:flex;gap:10px;flex-wrap:wrap;}
+  .h1{font-size:22px;font-weight:700;}
+  .sub{margin-top:6px;font-size:12px;color:#6b7280;}
+  .small{font-size:12px;}
+  .muted{color:#6b7280;}
+  .strong{font-weight:700;}
+  .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;}
+
+  .alert{margin:0 0 12px 0;padding:10px 12px;border-radius:14px;font-size:13px;border:1px solid #e5e7eb;background:#fff;}
+  .alert--ok{border-color:#bbf7d0;background:#f0fdf4;color:#166534;}
+  .alert--err{border-color:#fecaca;background:#fef2f2;color:#991b1b;}
+
+  .filters{display:grid;grid-template-columns:160px 1fr 120px 120px;gap:10px;align-items:center;}
+  .table{display:flex;flex-direction:column;border:1px solid #f1f5f9;border-radius:14px;overflow:hidden;}
+
+  .tr{
+    display:grid;
+    grid-template-columns: 1.4fr 1fr 160px 80px 120px 1.6fr;
+    gap:10px;
+    padding:12px;
+    border-bottom:1px solid #f1f5f9;
+    background:#fff;
+    align-items:center;
+    position:relative;
+  }
+  .tr--head{background:#f9fafb;color:#6b7280;font-size:12px;}
+  .empty{padding:12px;}
+  .tag{display:inline-block;padding:2px 10px;border-radius:999px;background:#f1f5f9;color:#111827;font-size:12px;}
+
+  .actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+  .link{color:#111827;text-decoration:none;}
+  .link:hover{text-decoration:underline;}
+  .inline{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
+  .input--mini{height:28px;font-size:12px;padding:0 8px;border-radius:10px;}
+  .file--mini{height:28px;font-size:12px;}
+  .btn--mini{height:28px;padding:0 10px;border-radius:10px;font-size:12px;}
+
+  .due--ok{color:#6b7280;}
+  .due--today{color:#b45309;}
+  .due--over{color:#b91c1c;}
+
+  .tr--risk::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:#ef4444;}
+  .tr--today::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:#f59e0b;}
+
+  .pager{display:flex;justify-content:space-between;align-items:center;margin-top:12px;}
+  .pager__actions{display:flex;gap:10px;}
+  .btn--disabled{pointer-events:none;opacity:.5;}
+
+  @media (max-width: 980px){
+    .filters{grid-template-columns:1fr;}
+    .tr{grid-template-columns:1fr;}
+  }
+</style>

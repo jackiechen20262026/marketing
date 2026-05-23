@@ -1,0 +1,285 @@
+<%
+  const pageError = (typeof error !== "undefined" && error) ? String(error) : "";
+  const pageSuccess = (typeof success !== "undefined" && success) ? String(success) : "";
+
+  function fmtDate(v) {
+    if (!v) return "-";
+    try { return String(v).slice(0, 19).replace("T", " "); } catch { return String(v); }
+  }
+
+  function statusText(s) {
+    if (!s) return "pending";
+    const v = String(s).toLowerCase();
+    if (v === "pushed" || v === "success" || v === "done") return "pushed";
+    if (v === "failed" || v === "fail" || v === "error") return "failed";
+    if (v === "notpushed" || v === "not_pushed" || v === "not-pushed") return "pending";
+    if (v === "pending") return "pending";
+    return String(s);
+  }
+
+  function statusCn(s) {
+    const v = statusText(s);
+    if (v === "pushed") return "已推送";
+    if (v === "failed") return "失败";
+    return "未推送";
+  }
+
+  function batchStatusCn(s) {
+    const v = String(s || "").toLowerCase();
+    if (v === "completed") return "已完成";
+    if (v === "draft") return "未推送";
+    if (v === "ready") return "已准备";
+    return s || "-";
+  }
+
+  const itemList = items || [];
+  const shipmentList = shipments || [];
+  const isDraft = String(batch.status || "").toLowerCase() === "draft";
+
+  const shipIndex = new Map();
+  shipmentList.forEach(s => {
+    const leadId = s.leadId || s.lead_id;
+    if (leadId != null) shipIndex.set(String(leadId), s);
+  });
+
+  const total = itemList.length;
+  let pushed = 0, failed = 0, pending = 0;
+
+  itemList.forEach(it => {
+    const sid = String(it.lead_id);
+    const s = shipIndex.get(sid);
+    const st = statusText(s ? (s.pushStatus || s.push_status) : it.item_status);
+    if (st === "pushed") pushed++;
+    else if (st === "failed") failed++;
+    else pending++;
+  });
+%>
+
+<div class="batch-detail-page">
+  <div class="page-head">
+    <div>
+      <h1 class="page-title"><%= t("批次详情") %></h1>
+      <div class="page-sub">
+        <span class="mono">#<%= batch.id %></span>
+        · <%= batch.batch_name || "-" %>
+        · <span class="pill"><%= batchStatusCn(batch.status) %></span>
+      </div>
+    </div>
+
+    <div class="page-actions">
+      <a class="btn btn-outline" href="/portal/batches"><%= t("返回列表") %></a>
+
+      <form method="post" action="/portal/batches/<%= batch.id %>/push-yto" style="display:inline;">
+        <button class="btn" type="submit"><%= t("推送圆通") %></button>
+      </form>
+
+      <form method="post" action="/portal/batches/<%= batch.id %>/push-yto" style="display:inline;">
+        <input type="hidden" name="force" value="1">
+        <button class="btn btn-outline" type="submit" onclick="return confirm('将跳过缺失收件信息的线索，只推可推的。继续？')">
+          <%= t("继续推送可推的") %>
+        </button>
+      </form>
+
+      <form method="post" action="/portal/batches/<%= batch.id %>/repush-failed" style="display:inline;">
+        <button class="btn btn-outline" type="submit"><%= t("重推失败") %></button>
+      </form>
+
+      <form method="post" action="/portal/batches/<%= batch.id %>/repush-failed" style="display:inline;">
+        <input type="hidden" name="force" value="1">
+        <button class="btn btn-outline" type="submit" onclick="return confirm('将跳过缺失收件信息的线索，只重推可推的失败件。继续？')">
+          <%= t("重推失败（跳过缺失）") %>
+        </button>
+      </form>
+
+      <% if (isDraft) { %>
+        <form method="post" action="/portal/batches/<%= batch.id %>/delete" style="display:inline;">
+          <button
+            class="btn btn-danger"
+            type="submit"
+            onclick="return confirm('确定删除这个批次吗？删除后不可恢复。')"
+          >
+            <%= t("删除批次") %>
+          </button>
+        </form>
+      <% } %>
+    </div>
+  </div>
+
+  <% if (pageError) { %>
+    <div class="card" style="border:1px solid #ffe0e0;background:#fff6f6;margin-bottom:14px;">
+      <div style="color:#b00;font-size:14px;white-space:pre-wrap;"><%= pageError %></div>
+      <div class="small muted" style="margin-top:8px;line-height:1.6;">
+        <div>建议流程：</div>
+        <div>1）点击明细里的“去补齐”，补全：收件人 / 电话 / 省 / 市 / 详细地址</div>
+        <div>2）回到此页面再次点击“推送圆通”</div>
+        <div>如你希望先推可推的：点“继续推送可推的”（会跳过缺失收件信息的线索）。</div>
+      </div>
+    </div>
+  <% } %>
+
+  <% if (pageSuccess) { %>
+    <div class="card" style="border:1px solid #e6f4ea;background:#f6fffa;margin-bottom:14px;">
+      <div style="color:#0a7a2f;font-size:14px;white-space:pre-wrap;"><%= pageSuccess %></div>
+    </div>
+  <% } %>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title"><%= t("批次信息") %></div>
+      </div>
+
+      <div class="kv">
+        <div class="kv-row">
+          <div class="kv-k"><%= t("批次名称") %></div>
+          <div class="kv-v"><%= batch.batch_name || "-" %></div>
+        </div>
+
+        <div class="kv-row kv-top">
+          <div class="kv-k"><%= t("备注") %></div>
+          <div class="kv-v"><%= batch.remark || "-" %></div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="kv-row">
+          <div class="kv-k"><%= t("创建时间") %></div>
+          <div class="kv-v mono"><%= fmtDate(batch.created_at) %></div>
+        </div>
+
+        <div class="kv-row">
+          <div class="kv-k"><%= t("更新时间") %></div>
+          <div class="kv-v mono"><%= fmtDate(batch.updated_at) %></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title"><%= t("推送统计") %></div>
+      </div>
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <span class="pill"><%= t("总数") %>: <%= total %></span>
+        <span class="pill"><%= t("已推送") %>: <%= pushed %></span>
+        <span class="pill"><%= t("失败") %>: <%= failed %></span>
+        <span class="pill"><%= t("未推送") %>: <%= pending %></span>
+      </div>
+
+      <div class="small" style="margin-top:10px;line-height:1.6;">
+        <%= t("导入允许缺字段，推单前会检查收件信息。缺少收件人/电话/省市/详细地址会被提示补齐。") %>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head" style="margin-bottom:14px;">
+      <div class="card-title"><%= t("线索明细") %></div>
+
+      <% if (isDraft) { %>
+        <form id="removeItemsForm" method="post" action="/portal/batches/<%= batch.id %>/remove-items" style="display:inline;">
+          <button
+            class="btn btn-outline"
+            type="submit"
+            onclick="return confirmRemoveSelected()"
+          >
+            删除选中
+          </button>
+        </form>
+      <% } %>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <% if (isDraft) { %>
+              <th style="width:52px; text-align:center;">
+                <input type="checkbox" id="checkAllBatchItems" onclick="toggleAllBatchItems(this)">
+              </th>
+            <% } %>
+            <th><%= t("公司") %></th>
+            <th style="width:140px;"><%= t("联系人") %></th>
+            <th style="width:140px;"><%= t("电话") %></th>
+            <th style="width:120px;"><%= t("等级") %></th>
+            <th style="width:140px;"><%= t("阶段") %></th>
+            <th style="width:140px;"><%= t("运单号") %></th>
+            <th style="width:120px;"><%= t("状态") %></th>
+            <th><%= t("失败原因") %></th>
+            <th style="width:110px;"><%= t("去补齐") %></th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <% itemList.forEach(it => {
+            const sid = String(it.lead_id);
+            const s = shipIndex.get(sid);
+
+            const st = statusText(s ? (s.pushStatus || s.push_status) : it.item_status);
+            const waybill = s ? (s.waybillNo || s.waybill_no || "-") : "-";
+            const errMsg = s ? (s.errorMessage || s.error_message || "") : (it.error_msg || "");
+          %>
+            <tr>
+              <% if (isDraft) { %>
+                <td style="text-align:center;">
+                  <input
+                    type="checkbox"
+                    class="batch-item-check"
+                    name="lead_ids"
+                    value="<%= it.lead_id %>"
+                    form="removeItemsForm"
+                  >
+                </td>
+              <% } %>
+
+              <td>
+                <a class="link" href="/portal/leads/<%= it.lead_id %>">
+                  <%= it.company_name || ("Lead #" + it.lead_id) %>
+                </a>
+                <div class="small"><%= (it.city || "") %> <%= (it.category ? ("· " + it.category) : "") %></div>
+              </td>
+              <td><%= it.contact_name || "-" %></td>
+              <td class="mono"><%= it.phone || "-" %></td>
+              <td><span class="pill"><%= it.customer_level || "-" %></span></td>
+              <td><span class="tag"><%= it.workflow_stage || "-" %></span></td>
+              <td class="mono"><%= waybill %></td>
+              <td><span class="pill"><%= statusCn(st) %></span></td>
+              <td style="color:#b00;white-space:pre-wrap;"><%= errMsg %></td>
+              <td>
+                <a class="btn btn-outline" style="padding:6px 10px;" href="/portal/leads/<%= it.lead_id %>/edit">
+                  <%= t("编辑") %>
+                </a>
+              </td>
+            </tr>
+          <% }) %>
+
+          <% if (!itemList.length) { %>
+            <tr>
+              <td colspan="<%= isDraft ? 10 : 9 %>" class="muted" style="text-align:center;padding:22px;">
+                <%= t("暂无明细") %>
+              </td>
+            </tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<% if (isDraft) { %>
+<script>
+  function toggleAllBatchItems(source) {
+    const checks = document.querySelectorAll('.batch-item-check');
+    checks.forEach(el => { el.checked = !!source.checked; });
+  }
+
+  function confirmRemoveSelected() {
+    const checks = Array.from(document.querySelectorAll('.batch-item-check:checked'));
+    if (!checks.length) {
+      alert('请先勾选要移出的线索');
+      return false;
+    }
+    return confirm('确定将选中的线索移出当前批次吗？不会删除客户主档。');
+  }
+</script>
+<% } %>

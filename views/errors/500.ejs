@@ -1,0 +1,12 @@
+<div class="card">
+  <h1 style="margin:0;font-size:24px;font-weight:500;">系统错误</h1>
+  <div class="small" style="margin-top:8px;">服务器发生异常，请稍后再试。</div>
+  <% if (error && error.message) { %>
+    <div class="small" style="margin-top:10px;color:#b00;"><%= error.message %></div>
+  <% } %>
+  <div style="height:12px;"></div>
+  <a href="/portal/lead-pool" style="text-decoration:none;">
+    <button type="button" class="btn-outline">返回线索池</button>
+  </a>
+</div>
+

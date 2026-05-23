@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>
+    <%= (typeof title !== 'undefined' && title)
+        ? title
+        : "售后联盟市场推广管理系统" %>
+  </title>
+  <link rel="stylesheet" href="/style.css">
+
+  <style>
+    body { font-weight: 400; }
+    .nav-left { font-weight: 600; }
+    .nav-center a { font-weight: 500; }
+    .nav-right span { font-weight: 500; }
+
+    .nav-center a{
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .badge{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      height:18px;
+      min-width:18px;
+      padding:0 6px;
+      border-radius:999px;
+      font-size:12px;
+      line-height:18px;
+      font-weight:600;
+      background:#111827;
+      color:#fff;
+      transform: translateY(-1px);
+      user-select:none;
+    }
+
+    /* 阶段角标配色 */
+    .badge-demand{ background:#111827; }   /* 需求：黑 */
+    .badge-partner{ background:#f59e0b; }  /* 合作：橙 */
+    .badge-sample{ background:#2563eb; }   /* 样品：蓝 */
+    .badge-deal{ background:#16a34a; }     /* 成交：绿 */
+    .badge-today{ background:#16a34a; }    /* 今日：绿 */
+
+    /* 模块角标配色 */
+    .badge-plans{ background:#7c3aed; }     /* 总计划：紫 */
+    .badge-followups{ background:#ef4444; } /* 总跟进：红（待处理） */
+    .badge-batches{ background:#0ea5e9; }   /* 批次：青蓝 */
+
+    .pulse-soft{ animation: pulseSoft 1.6s ease-in-out infinite; }
+    @keyframes pulseSoft{
+      0%,100% { box-shadow: 0 0 0 rgba(17,24,39,0); }
+      50% { box-shadow: 0 0 0 6px rgba(17,24,39,0.08); }
+    }
+
+    /* 顶部统计条 */
+    .top-metrics{
+      display:flex; align-items:center; gap:12px;
+      padding:12px 16px; margin:16px 0;
+      background:#fff; border:1px solid #eee; border-radius:14px;
+    }
+    .metric{
+      flex:0 0 auto;
+      min-width:150px;
+      padding:10px 12px;
+      border:1px solid #f0f0f0;
+      border-radius:12px;
+      background:#fff;
+    }
+    .metric-row{
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+    }
+    .metric-label{
+      font-size:12px; color:#6b7280; font-weight:500;
+      white-space:nowrap;
+    }
+    .metric-value{
+      font-size:18px; color:#111827; font-weight:600;
+      white-space:nowrap;
+    }
+    .metric-target{ min-width:280px; }
+    .metric-target .metric-value{ font-size:14px; font-weight:600; }
+    .metric-target.done .metric-value{ color:#0a7a2f; }
+    .metric-target.warning .metric-value{ color:#b45309; }
+
+    .prog{
+      margin-top:8px;
+      height:8px;
+      background:#eef2f7;
+      border-radius:999px;
+      overflow:hidden;
+    }
+    .prog > i{
+      display:block; height:100%;
+      width:0%;
+      background:#111827;
+      border-radius:999px;
+      transition:width .2s ease;
+    }
+    .metric-target.done .prog > i{ background:#16a34a; }
+    .metric-target.warning .prog > i{ background:#111827; }
+
+    /* hover 浮层 */
+    .nav-pop{
+      position:absolute;
+      top: 34px;
+      left: 0;
+      z-index: 50;
+      width: 340px;
+      padding: 12px;
+      border-radius: 14px;
+      border: 1px solid #eee;
+      background: rgba(255,255,255,.98);
+      box-shadow: 0 10px 30px rgba(0,0,0,.08);
+      display:none;
+    }
+    .nav-center a:hover .nav-pop{ display:block; }
+    .pop-title{
+      font-size:12px;
+      color:#6b7280;
+      font-weight:600;
+      margin-bottom:10px;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+    }
+    .pop-grid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:8px;
+    }
+    .pop-item{
+      border:1px solid #f0f0f0;
+      border-radius:12px;
+      padding:10px;
+      background:#fff;
+    }
+    .pop-item .k{
+      font-size:12px;
+      color:#6b7280;
+      font-weight:500;
+      margin-bottom:6px;
+      white-space:nowrap;
+    }
+    .pop-item .v{
+      font-size:16px;
+      color:#111827;
+      font-weight:600;
+      white-space:nowrap;
+    }
+    .pop-mini{
+      margin-top:10px;
+      border-top:1px dashed #eee;
+      padding-top:10px;
+    }
+    .mini-row{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+      font-size:12px;
+      color:#6b7280;
+      font-weight:500;
+    }
+    .mini-row strong{
+      color:#111827;
+      font-weight:600;
+    }
+
+    @media (max-width: 1100px){
+      .top-metrics{ flex-wrap:wrap; }
+      .metric{ min-width:160px; }
+      .metric-target{ min-width:100%; }
+      .nav-pop{ left:auto; right:0; }
+    }
+  </style>
+</head>
+
+<body>
+  <%
+    const userSafe = (typeof user !== 'undefined') ? user : null;
+    const p = (typeof currentPath !== 'undefined' && currentPath) ? currentPath : '';
+
+    const leadStatsSafe = (typeof leadStats !== 'undefined' && leadStats) ? leadStats : (locals?.leadStats || null);
+    const navCountsSafe = (typeof navCounts !== 'undefined' && navCounts) ? navCounts : (locals?.navCounts || null);
+
+    const todayCount = leadStatsSafe ? Number(leadStatsSafe.today || 0) : 0;
+    const weekDone = leadStatsSafe ? Number(leadStatsSafe.week || 0) : 0;
+    const monthCount = leadStatsSafe ? Number(leadStatsSafe.month || 0) : 0;
+
+    const demandCount = navCountsSafe ? Number(navCountsSafe.demand || 0) : 0;
+    const partnerCount = navCountsSafe ? Number(navCountsSafe.partner || 0) : 0;
+    const sampleCount = navCountsSafe ? Number(navCountsSafe.sample || 0) : 0;
+    const dealCount = navCountsSafe ? Number(navCountsSafe.deal || 0) : 0;
+
+    const plansCount = navCountsSafe ? Number(navCountsSafe.plans || 0) : 0;
+    const followupsCount = navCountsSafe ? Number(navCountsSafe.followups || 0) : 0;
+    const batchesCount = navCountsSafe ? Number(navCountsSafe.batches || 0) : 0;
+
+    const fmt = (n) => (n > 999 ? "999+" : String(n));
+
+    const WEEK_TARGET = 50;
+    const weekDiff = WEEK_TARGET - weekDone;
+    const weekFinished = weekDone >= WEEK_TARGET;
+    const weekPctRaw = WEEK_TARGET > 0 ? (weekDone / WEEK_TARGET) * 100 : 0;
+    const weekPct = Math.max(0, Math.min(100, Math.round(weekPctRaw)));
+
+    const isAdmin = userSafe && String(userSafe.role || '').toLowerCase() === 'admin';
+  %>
+
+  <% if (userSafe) { %>
+    <div class="navbar">
+      <div class="nav-left">售后联盟市场推广管理系统</div>
+
+      <div class="nav-center">
+        <%
+          const isLeadRoot =
+            p.startsWith('/portal/lead-pool') ||
+            p.startsWith('/portal/leads/demand') ||
+            p.startsWith('/portal/leads/partner-intent') ||
+            p.startsWith('/portal/leads/sample-sent') ||
+            p.startsWith('/portal/leads/deal') ||
+            p.startsWith('/portal/leads/import') ||
+            p.startsWith('/portal/leads/new') ||
+            p.startsWith('/portal/leads/');
+
+          const isPlansAll = p.startsWith('/portal/plans');
+          const isFollowupsAll = p.startsWith('/portal/followups');
+          const isBatches = p.startsWith('/portal/batches');
+          const isTracks = p.startsWith('/shipments/tracks');
+          const isReports = p.startsWith('/portal/reports');
+          const isUsers = p.startsWith('/portal/users');
+        %>
+
+        <a class="<%= isLeadRoot ? 'nav-active' : '' %>" href="/portal/lead-pool">
+          线索池
+          <% if (todayCount > 0) { %>
+            <span class="badge badge-today"><%= fmt(todayCount) %></span>
+          <% } %>
+
+          <span class="nav-pop">
+            <div class="pop-title">
+              <span>系统概览</span>
+              <span style="color:#6b7280;font-weight:600;">本周 <%= weekPct %>%</span>
+            </div>
+
+            <div class="pop-grid">
+              <div class="pop-item"><div class="k">今日新增</div><div class="v"><%= todayCount %></div></div>
+              <div class="pop-item"><div class="k">本周新增</div><div class="v"><%= weekDone %></div></div>
+              <div class="pop-item"><div class="k">本月新增</div><div class="v"><%= monthCount %></div></div>
+              <div class="pop-item"><div class="k">本周目标</div><div class="v"><%= WEEK_TARGET %></div></div>
+
+              <div class="pop-item"><div class="k">总计划（未完成）</div><div class="v"><%= plansCount %></div></div>
+              <div class="pop-item"><div class="k">总跟进（待分析）</div><div class="v"><%= followupsCount %></div></div>
+              <div class="pop-item"><div class="k">批次数量</div><div class="v"><%= batchesCount %></div></div>
+              <div class="pop-item"><div class="k">需求/合作/样品/成交</div><div class="v"><%= demandCount %>/<%= partnerCount %>/<%= sampleCount %>/<%= dealCount %></div></div>
+            </div>
+
+            <div class="pop-mini">
+              <div class="mini-row"><span>本周进度</span><strong><%= weekPct %>%</strong></div>
+              <div class="prog"><i style="width:<%= weekPct %>%"></i></div>
+              <div class="mini-row" style="margin-top:8px;">
+                <% if (weekFinished) { %>
+                  <span>本周任务</span><strong style="color:#0a7a2f;">已完成 ✓</strong>
+                <% } else { %>
+                  <span>本周任务</span><strong style="color:#b45309;">还差 <%= weekDiff %></strong>
+                <% } %>
+              </div>
+            </div>
+          </span>
+        </a>
+
+        <a class="<%= p.startsWith('/portal/leads/demand') ? 'nav-active' : '' %>" href="/portal/leads/demand">
+          1，有需求客人
+          <% if (demandCount > 0) { %>
+            <span class="badge badge-demand <%= (!weekFinished ? 'pulse-soft' : '') %>"><%= fmt(demandCount) %></span>
+          <% } %>
+        </a>
+
+        <a class="<%= p.startsWith('/portal/leads/partner-intent') ? 'nav-active' : '' %>" href="/portal/leads/partner-intent">
+          2，合作意向客人
+          <% if (partnerCount > 0) { %>
+            <span class="badge badge-partner"><%= fmt(partnerCount) %></span>
+          <% } %>
+        </a>
+
+        <a class="<%= p.startsWith('/portal/leads/sample-sent') ? 'nav-active' : '' %>" href="/portal/leads/sample-sent">
+          3，已寄样品
+          <% if (sampleCount > 0) { %>
+            <span class="badge badge-sample"><%= fmt(sampleCount) %></span>
+          <% } %>
+        </a>
+
+        <a class="<%= p.startsWith('/portal/leads/deal') ? 'nav-active' : '' %>" href="/portal/leads/deal">
+          4，已成交
+          <% if (dealCount > 0) { %>
+            <span class="badge badge-deal"><%= fmt(dealCount) %></span>
+          <% } %>
+        </a>
+
+        <a class="<%= isPlansAll ? 'nav-active' : '' %>" href="/portal/plans">
+          总计划
+          <% if (plansCount > 0) { %>
+            <span class="badge badge-plans"><%= fmt(plansCount) %></span>
+          <% } %>
+        </a>
+
+        <a class="<%= isFollowupsAll ? 'nav-active' : '' %>" href="/portal/followups">
+          总跟进
+          <% if (followupsCount > 0) { %>
+            <span class="badge badge-followups"><%= fmt(followupsCount) %></span>
+          <% } %>
+        </a>
+
+        <a class="<%= p.startsWith('/portal/batches') ? 'nav-active' : '' %>" href="/portal/batches">
+          批次管理
+          <% if (batchesCount > 0) { %>
+            <span class="badge badge-batches"><%= fmt(batchesCount) %></span>
+          <% } %>
+        </a>
+
+        <% if (isAdmin) { %>
+          <a class="<%= isUsers ? 'nav-active' : '' %>" href="/portal/users">Users</a>
+        <% } %>
+
+        <a class="<%= isTracks ? 'nav-active' : '' %>" href="/shipments/tracks?range=90">圆通轨迹</a>
+        <a class="<%= isReports ? 'nav-active' : '' %>" href="/portal/reports">报表</a>
+        <a class="<%= p.startsWith('/portal/finance-ledger') ? 'nav-active' : '' %>" href="/portal/finance-ledger">财务流水</a>
+      </div>
+
+      <div class="nav-right">
+        <span><%= userSafe.name || userSafe.username || '' %></span>
+      </div>
+    </div>
+
+    <div class="top-metrics">
+      <div class="metric">
+        <div class="metric-row">
+          <span class="metric-label">今日新增</span>
+          <span class="metric-value"><%= todayCount %></span>
+        </div>
+      </div>
+
+      <div class="metric">
+        <div class="metric-row">
+          <span class="metric-label">本周新增</span>
+          <span class="metric-value"><%= weekDone %></span>
+        </div>
+      </div>
+
+      <div class="metric">
+        <div class="metric-row">
+          <span class="metric-label">本月新增</span>
+          <span class="metric-value"><%= monthCount %></span>
+        </div>
+      </div>
+
+      <div class="metric metric-target <%= weekFinished ? 'done' : 'warning' %>">
+        <div class="metric-row">
+          <span class="metric-label">本周任务 <%= WEEK_TARGET %></span>
+          <% if (weekFinished) { %>
+            <span class="metric-value">已完成 ✓</span>
+          <% } else { %>
+            <span class="metric-value">还差 <%= weekDiff %></span>
+          <% } %>
+        </div>
+
+        <div class="prog" aria-label="week-progress">
+          <i style="width:<%= weekPct %>%"></i>
+        </div>
+      </div>
+    </div>
+  <% } %>
+
+  <div class="container">
+    <%- body %>
+  </div>
+</body>
+</html>

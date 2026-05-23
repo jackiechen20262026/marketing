@@ -1,0 +1,66 @@
+<%
+  const path = currentPath || "";
+  const username =
+    (user && (user.name || user.id))
+      ? (user.name || user.id)
+      : "admin";
+
+  const isLeadPool = path.startsWith("/portal/lead-pool");
+
+  const isLeadManage =
+    path.startsWith("/portal/leads/manage") ||
+    /^\/portal\/leads\/\d+/.test(path);
+
+  const isBatch = path.startsWith("/portal/batches");
+
+  const stats = typeof leadStats !== "undefined" ? leadStats : null;
+%>
+
+<div class="navbar">
+  <div class="nav-left">
+    营销管理系统
+  </div>
+
+  <div class="nav-center">
+    <a href="/portal/lead-pool"
+       class="<%= isLeadPool ? 'nav-active' : '' %>">
+      线索池
+    </a>
+
+    <a href="/portal/leads/manage"
+       class="<%= isLeadManage ? 'nav-active' : '' %>">
+      线索管理
+    </a>
+
+    <a href="/portal/batches"
+       class="<%= isBatch ? 'nav-active' : '' %>">
+      批次管理
+    </a>
+
+    <a href="#">工单</a>
+    <a href="#">报表</a>
+  </div>
+
+  <div class="nav-right">
+    <span class="nav-user"><%= username %></span>
+  </div>
+</div>
+
+<% if (stats) { %>
+  <div class="top-metrics">
+    <div class="metric">
+      <span class="metric-label">今日新增</span>
+      <span class="metric-value"><%= stats.today %></span>
+    </div>
+
+    <div class="metric">
+      <span class="metric-label">本周新增</span>
+      <span class="metric-value"><%= stats.week %></span>
+    </div>
+
+    <div class="metric">
+      <span class="metric-label">本月新增</span>
+      <span class="metric-value"><%= stats.month %></span>
+    </div>
+  </div>
+<% } %>

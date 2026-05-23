@@ -1,0 +1,87 @@
+<%
+// locals: title, active, user, success, error, mode, form
+%>
+
+<div class="page-head">
+  <div>
+    <h1 class="page-title"><%= mode === "create" ? "New User" : "Edit User" %></h1>
+    <div class="page-sub"><%= mode === "create" ? "Create a new account" : ("Username: " + form.username) %></div>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-outline" href="/portal/users">Back</a>
+  </div>
+</div>
+
+<% if (success) { %>
+  <div class="alert alert-success"><%= success %></div>
+<% } %>
+<% if (error) { %>
+  <div class="alert alert-danger"><%= error %></div>
+<% } %>
+
+<div class="grid-2">
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Profile</div>
+    </div>
+
+    <form method="post" action="<%= mode === 'create' ? '/portal/users' : ('/portal/users/' + form.id) %>" class="form-grid">
+      <div class="span-2">
+        <div class="label">Username</div>
+        <input name="username" value="<%= form.username %>" <%= mode === "edit" ? "disabled" : "" %> placeholder="e.g. tom" />
+        <% if (mode === "edit") { %><div class="small">Username can’t be changed.</div><% } %>
+      </div>
+
+      <div class="span-2">
+        <div class="label">Name</div>
+        <input name="name" value="<%= form.name %>" placeholder="display name" />
+      </div>
+
+      <% if (mode === "create") { %>
+      <div class="span-2">
+        <div class="label">Password</div>
+        <input name="password" type="password" placeholder="min 6 chars" />
+      </div>
+      <% } %>
+
+      <div class="<%= mode === 'create' ? 'span-1' : 'span-2' %>">
+        <div class="label">Role</div>
+        <select name="role">
+          <option value="admin" <%= form.role==='admin' ? 'selected' : '' %>>Admin</option>
+          <option value="user" <%= form.role==='user' ? 'selected' : '' %>>User</option>
+        </select>
+      </div>
+
+      <div class="<%= mode === 'create' ? 'span-1' : 'span-2' %>">
+        <div class="label">Status</div>
+        <select name="status">
+          <option value="active" <%= form.status==='active' ? 'selected' : '' %>>Active</option>
+          <option value="disabled" <%= form.status==='disabled' ? 'selected' : '' %>>Disabled</option>
+        </select>
+      </div>
+
+      <div class="span-4" style="display:flex; gap:10px;">
+        <button class="btn" type="submit">Save</button>
+        <a class="btn btn-outline" href="/portal/users">Cancel</a>
+      </div>
+    </form>
+  </div>
+
+  <% if (mode === "edit") { %>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Reset Password</div>
+    </div>
+
+    <form method="post" action="/portal/users/<%= form.id %>/reset-password">
+      <div class="label">New Password</div>
+      <input name="newPassword" type="password" placeholder="min 6 chars" />
+      <div class="small">This will overwrite the current password.</div>
+
+      <div style="display:flex; gap:10px; margin-top:12px;">
+        <button class="btn btn-danger" type="submit" onclick="return confirm('Reset password for <%= form.username %>?')">Reset</button>
+      </div>
+    </form>
+  </div>
+  <% } %>
+</div>

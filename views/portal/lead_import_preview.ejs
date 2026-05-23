@@ -1,0 +1,147 @@
+<%
+  function safe(v){ return (v==null?'':String(v)); }
+  function joinAddr(r){
+    const p = safe(r?.data?.receiver_province);
+    const c = safe(r?.data?.receiver_city);
+    const a = safe(r?.data?.receiver_county);
+    const t = safe(r?.data?.receiver_town);
+    return [p,c,a,t].filter(Boolean).join(" ");
+  }
+%>
+
+<div class="page-head">
+  <div>
+    <h1 class="page-title"><%= t("导入预览") %></h1>
+    <div class="page-sub">
+      <%= t("文件") %>：<span class="pill"><%= filename %></span>
+      · <span class="pill"><%= t("总行数") %>：<%= total %></span>
+      · <span class="pill"><%= t("可导入") %>：<%= validCount %></span>
+      · <span class="pill"><%= t("不合法") %>：<%= invalidCount %></span>
+      · <span class="pill"><%= t("需补充") %>：<%= needFixCount || 0 %></span>
+    </div>
+  </div>
+
+  <div class="page-actions">
+    <a class="btn btn-outline" href="/portal/leads/import"><%= t("重新上传") %></a>
+    <a class="btn btn-outline" href="/portal/lead-pool"><%= t("返回线索池") %></a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head">
+    <div class="card-title"><%= t("模板表头（建议匹配）") %></div>
+  </div>
+  <div class="small" style="white-space:pre-wrap;">
+    <%= expectedHeaders.join(",") %>
+  </div>
+</div>
+
+<div class="card" style="margin-top:14px;">
+  <div class="card-head">
+    <div class="card-title"><%= t("预览前 30 行") %></div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:80px;">行号</th>
+          <th>company_name</th>
+          <th style="width:140px;">receiver_name</th>
+          <th style="width:140px;">receiver_mobile</th>
+          <th style="width:160px;">省市区</th>
+          <th>receiver_address</th>
+          <th style="width:140px;">category</th>
+          <th style="width:110px;">customer_level</th>
+          <th style="width:120px;">workflow_stage</th>
+          <th style="width:320px;">校验/提醒</th>
+        </tr>
+      </thead>
+      <tbody>
+        <%
+          const show = (validRows || []).slice(0, 30).concat((invalidRows || []).slice(0, 30));
+          show.sort((a,b)=>a.rowNo-b.rowNo);
+          show.slice(0,30).forEach(r=>{
+            const ok = !r.errors || r.errors.length===0;
+            const warn = (r.warnings || []);
+        %>
+          <tr style="background:<%= ok ? (warn.length ? '#fff7ed' : '') : '#fff1f2' %>;">
+            <td class="mono"><%= r.rowNo %></td>
+
+            <td>
+              <div style="font-weight:600;"><%= safe(r.data.company_name) %></div>
+              <div class="small muted">
+                <%= safe(r.data.contact_name) %>
+                <%= (r.data.contact_name && r.data.phone) ? " · " : "" %>
+                <%= safe(r.data.phone) %>
+              </div>
+            </td>
+
+            <td><%= safe(r.data.receiver_name) %></td>
+            <td class="mono"><%= safe(r.data.receiver_mobile) %></td>
+            <td><%= joinAddr(r) %></td>
+            <td><%= safe(r.data.receiver_address) %></td>
+
+            <td><%= safe(r.data.category) %></td>
+            <td><span class="pill"><%= safe(r.data.customer_level) %></span></td>
+            <td><span class="tag"><%= safe(r.data.workflow_stage) %></span></td>
+
+            <td style="color:<%= ok ? (warn.length ? '#b45309' : '#0a7') : '#b00' %>;">
+              <% if (!ok) { %>
+                <%= r.errors.join("；") %>
+              <% } else if (warn.length) { %>
+                <div>可导入，但推单前需补充：</div>
+                <div><%= warn.join("；") %></div>
+              <% } else { %>
+                OK
+              <% } %>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="small muted" style="margin-top:10px;">
+    <%= t("说明：仅 company_name 缺失会阻断导入；收件字段缺失将保留为“提醒”，在批次推单前集中检查并提示补齐。") %>
+  </div>
+
+  <form method="post" action="/portal/leads/import/commit" style="margin-top:12px;">
+    <input type="hidden" name="token" value="<%= token %>">
+    <div style="display:flex;justify-content:flex-end;gap:10px;">
+      <a class="btn btn-outline" href="/portal/leads/import"><%= t("取消") %></a>
+      <button class="btn" type="submit" <%= validCount===0 ? 'disabled style="opacity:.5;pointer-events:none;"' : '' %>>
+        <%= t("确认导入") %>（<%= validCount %>）
+      </button>
+    </div>
+  </form>
+</div>
+
+<% if (invalidRows && invalidRows.length) { %>
+  <div class="card" style="margin-top:14px;">
+    <div class="card-head">
+      <div class="card-title"><%= t("不合法行（前 50 条）") %></div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:80px;">行号</th>
+            <th>company_name</th>
+            <th style="width:320px;">错误</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% invalidRows.slice(0,50).forEach(r=>{ %>
+            <tr>
+              <td class="mono"><%= r.rowNo %></td>
+              <td><%= safe(r.data.company_name) %></td>
+              <td style="color:#b00;"><%= r.errors.join("；") %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+<% } %>

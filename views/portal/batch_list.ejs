@@ -1,0 +1,122 @@
+<%
+// views/portal/batch_list.ejs
+%>
+
+<%
+  // ✅ 只显示 YYYY-MM-DD，兼容 Date / string / mysql2 返回
+  function fmtDate(v) {
+    if (!v) return "-";
+    try {
+      const d = new Date(v);
+      if (isNaN(d.getTime())) {
+        // 兜底：如果是 "2026-02-24 11:22:33" 或 "2026-02-24T..."
+        const s = String(v);
+        if (s && s.length >= 10) return s.slice(0, 10);
+        return "-";
+      }
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      return `${yyyy}-${mm}-${dd}`;
+    } catch (e) {
+      const s = String(v || "");
+      return s.length >= 10 ? s.slice(0, 10) : "-";
+    }
+  }
+
+  function n(v, d = 0) {
+    const x = Number(v);
+    return Number.isFinite(x) ? x : d;
+  }
+
+  function getLeadCount(b) {
+    // service: leadCount；兼容旧字段 lead_count
+    if (b && b.leadCount != null) return n(b.leadCount, 0);
+    if (b && b.lead_count != null) return n(b.lead_count, 0);
+    if (b && b.leadCount === 0) return 0;
+    return 0;
+  }
+
+  function statText(b) {
+    // 目前 service 里没有 pushed_count/failed_count/pending_count，就做兜底显示
+    const hasAny =
+      b && (b.pushed_count != null || b.failed_count != null || b.pending_count != null);
+
+    if (!hasAny) return "-";
+
+    const pushed = n(b.pushed_count, 0);
+    const failed = n(b.failed_count, 0);
+    const pending = n(b.pending_count, 0);
+    return `pushed: ${pushed} / failed: ${failed} / pending: ${pending}`;
+  }
+%>
+
+<div class="page-head">
+  <div>
+    <h1 class="page-title"><%= t("批次列表") %></h1>
+    <div class="page-sub"><%= t("查看批次、推送圆通、统计结果") %></div>
+  </div>
+  <div class="page-actions">
+    <!-- ✅ 统一入口：/batches/create -->
+    <a class="btn btn-outline" href="/portal/batches/create"><%= t("创建批次") %></a>
+    <a class="btn btn-outline" href="/portal/lead-pool"><%= t("回线索池") %></a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:90px;">ID</th>
+          <th><%= t("批次名称") %></th>
+          <th style="width:140px;"><%= t("状态") %></th>
+          <th style="width:120px;"><%= t("线索数") %></th>
+          <th style="width:220px;"><%= t("统计") %></th>
+          <th style="width:180px;"><%= t("创建时间") %></th>
+          <th style="width:140px;"><%= t("操作") %></th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <% (rows || []).forEach(b => { %>
+          <tr>
+            <td class="mono"><%= b.id %></td>
+
+            <td>
+              <div style="font-weight:600;">
+                <a class="link" href="/portal/batches/<%= b.id %>">
+                  <%= b.batch_name || b.batchName || ("Batch #" + b.id) %>
+                </a>
+              </div>
+              <% if (b.remark) { %>
+                <div class="small"><%= b.remark %></div>
+              <% } %>
+            </td>
+
+            <td><span class="pill"><%= b.status || '-' %></span></td>
+
+            <td><span class="pill"><%= getLeadCount(b) %></span></td>
+
+            <td class="small"><%= statText(b) %></td>
+
+            <!-- ✅ 只显示日期 -->
+            <td class="mono"><%= fmtDate(b.created_at || b.createdAt) %></td>
+
+            <td>
+              <a class="btn btn-outline" href="/portal/batches/<%= b.id %>"><%= t("查看") %></a>
+            </td>
+          </tr>
+        <% }) %>
+
+        <% if (!rows || !rows.length) { %>
+          <tr>
+            <td colspan="7" class="muted" style="text-align:center;padding:22px;">
+              <%= t("暂无数据") %>
+            </td>
+          </tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+</div>

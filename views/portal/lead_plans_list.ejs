@@ -1,0 +1,227 @@
+<%
+// views/portal/lead_plans_list.ejs (Card CRM版 / 极简风)
+// 目标：风格与 lead_demand 一致（企业CRM轻量、字体 400/500/600）
+// 左侧：新增计划（表单卡）
+// 右侧：计划列表（卡片列表）
+
+const plansSafe = plans || [];
+
+const TYPE_NAME = {
+  call: "电话",
+  wechat: "微信",
+  email: "邮件",
+  visit: "拜访",
+  other: "其他",
+};
+
+function fmtDateTimeLocal(v){
+  if(!v) return '';
+  const d = new Date(v);
+  if(Number.isNaN(d.getTime())) return '';
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  const hh = String(d.getHours()).padStart(2,'0');
+  const mi = String(d.getMinutes()).padStart(2,'0');
+  return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
+}
+function typeLabel(v){
+  const k = String(v||'').trim();
+  return TYPE_NAME[k] || k || '-';
+}
+%>
+
+<div class="page">
+  <div class="page__header page__header--sticky">
+    <div class="titlebox">
+      <div class="h1"><%= t("跟进计划") %></div>
+      <div class="sub"><%= (lead && lead.company_name) ? lead.company_name : ('#' + (lead && lead.id)) %></div>
+    </div>
+
+    <div class="page__actions">
+      <a class="btn btn--ghost" href="/portal/leads/<%= lead.id %>"><%= t("返回详情") %></a>
+      <a class="btn btn--ghost" href="/portal/leads/<%= lead.id %>/followups/new"><%= t("写跟进") %></a>
+      <a class="btn btn--primary" href="/portal/leads/<%= lead.id %>/visit"><%= t("拜访打卡") %></a>
+    </div>
+  </div>
+
+  <% if (success) { %><div class="alert alert--ok"><%= success %></div><% } %>
+  <% if (error) { %><div class="alert alert--err"><%= error %></div><% } %>
+
+  <div class="grid">
+    <!-- 左：新增计划 -->
+    <div class="col col--side">
+      <div class="card">
+        <div class="card__hd">
+          <div class="card__title"><%= t("新增计划") %></div>
+          <div class="muted small"><%= t("创建后进入待办") %></div>
+        </div>
+
+        <form method="post" action="/portal/leads/<%= lead.id %>/plans" class="stack">
+          <div class="field">
+            <div class="label"><%= t("计划类型") %></div>
+            <select class="input" name="plan_type">
+              <% (types||[]).forEach(x => { %>
+                <option value="<%= x.key %>"><%= x.name %></option>
+              <% }) %>
+            </select>
+          </div>
+
+          <div class="field">
+            <div class="label"><%= t("计划时间") %></div>
+            <input class="input" type="datetime-local" name="planned_at">
+            <div class="hint muted small"><%= t("可留空（仅备注）") %></div>
+          </div>
+
+          <div class="field">
+            <div class="label"><%= t("备注") %></div>
+            <textarea class="textarea" name="plan_note" rows="5" placeholder="<%= t("写清楚要做什么、要拿到什么结果") %>"></textarea>
+          </div>
+
+          <button class="btn btn--primary" type="submit"><%= t("创建计划") %></button>
+        </form>
+      </div>
+    </div>
+
+    <!-- 右：计划列表 -->
+    <div class="col">
+      <div class="card">
+        <div class="card__hd">
+          <div class="card__title"><%= t("计划列表") %></div>
+          <div class="muted small"><%= t("共") %> <%= plansSafe.length %> <%= t("条") %></div>
+        </div>
+
+        <div class="listPad">
+          <% if (!plansSafe.length) { %>
+            <div class="empty muted"><%= t("暂无计划") %></div>
+          <% } else { %>
+            <div class="plist">
+              <% plansSafe.forEach(p => { %>
+                <div class="pCard">
+                  <div class="pTop">
+                    <div class="pLeft">
+                      <div class="pTitle">
+                        <span class="tag"><%= typeLabel(p.plan_type) %></span>
+                        <span class="mono"><%= p.planned_at ? fmtDateTimeLocal(p.planned_at) : '-' %></span>
+                        <% if (p.status) { %>
+                          <span class="pill <%= p.status==='DONE' ? 'pill--ok' : (p.status==='CANCELLED' ? 'pill--muted' : 'pill--soft') %>">
+                            <%= p.status %>
+                          </span>
+                        <% } %>
+                      </div>
+
+                      <% if (p.plan_note) { %>
+                        <div class="pNote pre"><%= p.plan_note %></div>
+                      <% } else { %>
+                        <div class="pNote muted small">—</div>
+                      <% } %>
+                    </div>
+
+                    <div class="pRight muted small">
+                      <% if (p.created_by_name) { %>
+                        <div><%= t("创建人：") %><%= p.created_by_name %></div>
+                      <% } %>
+                      <% if (p.created_at) { %>
+                        <div class="mono"><%= fmtDateTimeLocal(p.created_at) %></div>
+                      <% } %>
+                    </div>
+                  </div>
+                </div>
+              <% }) %>
+            </div>
+          <% } %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  /* ✅ 不写 :root，避免覆盖 public/style.css */
+
+  .page__header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:14px;}
+  .page__header--sticky{position:sticky;top:0;z-index:20;background:var(--bg,#f8fafc);padding:14px 0;border-bottom:1px solid rgba(0,0,0,.06);}
+  .page__actions{display:flex;gap:10px;flex-wrap:wrap;}
+  .h1{font-size:18px;font-weight:500;color:var(--text,#111827);letter-spacing:-.2px;}
+  .sub{margin-top:6px;font-size:12px;color:var(--muted,#6b7280);}
+
+  .small{font-size:12px;}
+  .muted{color:var(--muted,#6b7280);}
+  .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;}
+  .pre{white-space:pre-wrap;word-break:break-word;}
+
+  .alert{margin:0 0 12px 0;padding:10px 12px;border-radius:12px;font-size:13px;border:1px solid rgba(0,0,0,.08);background:#fff;}
+  .alert--ok{border-color:#bbf7d0;background:#f0fdf4;color:#166534;}
+  .alert--err{border-color:#fecaca;background:#fef2f2;color:#991b1b;}
+
+  .card{background:#fff;border:1px solid rgba(0,0,0,.06);border-radius:12px;margin:0 0 12px 0;box-shadow:0 1px 2px rgba(16,24,40,0.04);}
+  .card__hd{display:flex;justify-content:space-between;align-items:baseline;padding:12px 14px;border-bottom:1px solid rgba(0,0,0,.06);gap:10px;}
+  .card__title{font-weight:500;color:var(--text,#111827);}
+
+  .btn{display:inline-flex;align-items:center;justify-content:center;height:38px;padding:0 14px;border-radius:10px;border:1px solid rgba(0,0,0,.10);background:#fff;color:#111827;text-decoration:none;font-size:13px;font-weight:400;cursor:pointer;}
+  .btn--primary{border-color:#111827;background:#111827;color:#fff;font-weight:500;}
+  .btn--ghost{background:#fff;}
+
+  .grid{display:grid;grid-template-columns: 420px 1fr;gap:12px;align-items:start;}
+  .col{min-width:0;}
+  .col--side{min-width:0;}
+
+  .stack{padding:14px;display:flex;flex-direction:column;gap:12px;}
+  .field{display:flex;flex-direction:column;gap:8px;}
+  .label{font-size:12px;color:#0f172a;font-weight:600;}
+  .hint{margin-top:-4px;}
+
+  .input{height:38px;border:1px solid rgba(0,0,0,.10);border-radius:10px;padding:0 12px;background:#fff;font-size:13px;outline:none;}
+  .input:focus{border-color:rgba(0,0,0,.25);box-shadow:0 0 0 3px rgba(148,163,184,0.15);}
+  .textarea{border:1px solid rgba(0,0,0,.10);border-radius:10px;padding:10px 12px;background:#fff;font-size:13px;outline:none;resize:vertical;min-height:96px;}
+  .textarea:focus{border-color:rgba(0,0,0,.25);box-shadow:0 0 0 3px rgba(148,163,184,0.15);}
+
+  .listPad{padding:14px;}
+  .empty{padding:14px;}
+
+  /* ✅ 计划卡片列表 */
+  .plist{display:flex;flex-direction:column;gap:12px;}
+  .pCard{
+    border:1px solid rgba(0,0,0,.08);
+    border-radius:14px;
+    background:#fff;
+    overflow:hidden;
+  }
+  .pCard:hover{
+    box-shadow:0 10px 30px rgba(15,23,42,.06);
+    border-color:rgba(0,0,0,.12);
+  }
+
+  .pTop{display:flex;justify-content:space-between;gap:12px;padding:14px;background:#fbfcfe;}
+  .pLeft{min-width:0;flex:1;}
+  .pRight{flex:0 0 auto;text-align:right;white-space:nowrap;}
+  .pTitle{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+
+  .tag{
+    display:inline-flex;align-items:center;
+    padding:5px 10px;border-radius:999px;
+    background:#f3f4f6;color:#334155;font-size:12px;font-weight:500;
+    border:1px solid rgba(0,0,0,.08);
+    white-space:nowrap;
+  }
+
+  .pill{
+    display:inline-flex;align-items:center;
+    height:24px;padding:0 10px;border-radius:999px;
+    border:1px solid rgba(0,0,0,.10);
+    font-size:12px;font-weight:500;
+    background:#fff;
+    white-space:nowrap;
+    color:#0f172a;
+  }
+  .pill--soft{background:#f8fafc;border-color:rgba(0,0,0,.10);}
+  .pill--ok{background:#f0fdf4;border-color:#bbf7d0;color:#166534;}
+  .pill--muted{background:#f1f5f9;border-color:rgba(0,0,0,.08);color:#475569;}
+
+  .pNote{margin-top:10px;font-size:13px;color:#0f172a;line-height:1.55;background:#fff;border:1px solid rgba(0,0,0,.06);border-radius:12px;padding:12px;}
+
+  @media (max-width: 980px){
+    .grid{grid-template-columns: 1fr;}
+    .pRight{text-align:left;}
+  }
+</style>

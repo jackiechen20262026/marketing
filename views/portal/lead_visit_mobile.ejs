@@ -1,0 +1,137 @@
+<%
+// views/portal/lead_visit_mobile.ejs
+%>
+
+<div class="page page--mobile">
+  <div class="page__header page__header--sticky">
+    <div>
+      <div class="h1"><%= t("拜访打卡") %></div>
+      <div class="sub"><%= (lead && lead.company_name) ? lead.company_name : ('#' + (lead && lead.id)) %></div>
+    </div>
+
+    <div class="page__actions">
+      <a class="btn btn--ghost" href="/portal/leads/<%= lead.id %>"><%= t("返回详情") %></a>
+    </div>
+  </div>
+
+  <% if (success) { %><div class="alert alert--ok"><%= success %></div><% } %>
+  <% if (error) { %><div class="alert alert--err"><%= error %></div><% } %>
+
+  <div class="card">
+    <div class="card__hd">
+      <div class="card__title"><%= t("打卡要求") %></div>
+    </div>
+    <div class="muted small">
+      1) <%= t("必须定位（经纬度）") %><br>
+      2) <%= t("必须至少上传 1 张照片") %><br>
+      3) <%= t("内容必填") %>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card__hd">
+      <div class="card__title"><%= t("提交拜访") %></div>
+    </div>
+
+    <form id="visitForm" method="post" action="/portal/leads/<%= lead.id %>/visit" enctype="multipart/form-data" class="stack">
+      <input type="hidden" name="visit_lat" id="visit_lat">
+      <input type="hidden" name="visit_lng" id="visit_lng">
+      <input type="hidden" name="visit_address" id="visit_address">
+
+      <div class="grid2">
+        <button class="btn btn--primary" type="button" id="btnLocate"><%= t("获取定位") %></button>
+        <div class="loc">
+          <div class="muted small"><%= t("当前位置") %></div>
+          <div class="mono small" id="locText">-</div>
+        </div>
+      </div>
+
+      <div class="field">
+        <div class="label"><%= t("拍照上传") %> *</div>
+        <input class="input" type="file" name="photos" accept="image/*" capture="environment" multiple required>
+        <div class="muted small"><%= t("支持：jpeg/png/webp；最多 6 张") %></div>
+      </div>
+
+      <div class="field">
+        <div class="label"><%= t("拜访内容") %> *</div>
+        <textarea class="textarea" name="content" rows="6" required></textarea>
+      </div>
+
+      <div class="field">
+        <label class="check">
+          <input type="checkbox" name="need_analysis" value="1">
+          <span><%= t("需要分析") %></span>
+        </label>
+      </div>
+
+      <div class="field">
+        <div class="label"><%= t("分析内容") %></div>
+        <textarea class="textarea" name="analysis" rows="4"></textarea>
+      </div>
+
+      <button class="btn btn--primary" type="submit" id="btnSubmit"><%= t("提交拜访") %></button>
+    </form>
+  </div>
+</div>
+
+<script>
+  (function(){
+    const btnLocate = document.getElementById('btnLocate');
+    const locText = document.getElementById('locText');
+    const latEl = document.getElementById('visit_lat');
+    const lngEl = document.getElementById('visit_lng');
+    const addrEl = document.getElementById('visit_address');
+
+    function setLoc(lat, lng, addr){
+      latEl.value = String(lat);
+      lngEl.value = String(lng);
+      addrEl.value = addr || '';
+      locText.textContent = lat.toFixed(6) + ', ' + lng.toFixed(6) + (addr ? (' · ' + addr) : '');
+    }
+
+    btnLocate.addEventListener('click', async function(){
+      locText.textContent = '定位中...';
+      if (!navigator.geolocation) {
+        locText.textContent = '该浏览器不支持定位';
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+
+          // 不做第三方逆地址解析（避免 key/隐私/稳定性）
+          setLoc(lat, lng, '');
+        },
+        (err) => {
+          locText.textContent = '定位失败：' + (err && err.message ? err.message : 'unknown');
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    });
+  })();
+</script>
+
+<style>
+  .page__header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:14px;}
+  .page__header--sticky{position:sticky;top:0;z-index:20;background:#f8fafc;padding:14px 0;border-bottom:1px solid #eef2f7;}
+  .page__actions{display:flex;gap:10px;flex-wrap:wrap;}
+  .h1{font-size:22px;font-weight:700;}
+  .sub{margin-top:6px;font-size:12px;color:#6b7280;}
+  .small{font-size:12px;}
+  .muted{color:#6b7280;}
+  .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;}
+
+  .alert{margin:0 0 12px 0;padding:10px 12px;border-radius:14px;font-size:13px;border:1px solid #e5e7eb;background:#fff;}
+  .alert--ok{border-color:#bbf7d0;background:#f0fdf4;color:#166534;}
+  .alert--err{border-color:#fecaca;background:#fef2f2;color:#991b1b;}
+
+  .stack{display:flex;flex-direction:column;gap:10px;}
+  .grid2{display:grid;grid-template-columns:160px 1fr;gap:10px;align-items:center;}
+  .loc{border:1px solid #f1f5f9;border-radius:14px;padding:10px;background:#fff;}
+  .check{display:flex;align-items:center;gap:10px;font-size:13px;}
+
+  @media (max-width: 980px){
+    .grid2{grid-template-columns:1fr;}
+  }
+</style>

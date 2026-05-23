@@ -1,0 +1,263 @@
+<%
+// views/portal/lead_create.ejs
+const _form = form || {};
+%>
+
+<div class="page-head">
+  <div>
+    <h1 class="page-title"><%= t("新增线索") %></h1>
+    <div class="page-sub"><%= t("独立新增页面（字段完整）") %></div>
+  </div>
+
+  <div class="page-actions">
+    <!-- ✅ 你要的“手动添加”按钮（当前页就是手动添加） -->
+    <a class="btn" href="/portal/leads/new"><%= t("手动添加") %></a>
+
+    <!-- ✅ 可选：导入入口 -->
+    <a class="btn btn-outline" href="/portal/leads/import"><%= t("批量导入") %></a>
+
+    <a class="btn btn-outline" href="/portal/lead-pool"><%= t("返回线索池") %></a>
+  </div>
+</div>
+
+<% if (error) { %>
+  <div class="alert alert-danger"><%= error %></div>
+<% } %>
+
+<div class="card">
+  <div class="card-head">
+    <div class="card-title"><%= t("公司与工商信息") %></div>
+  </div>
+
+  <form method="post" action="/portal/leads/create" class="stack">
+    <div class="form-grid">
+      <div class="span-2">
+        <div class="label"><%= t("公司名称") %>*</div>
+        <input name="company_name" value="<%= _form.company_name || '' %>" required>
+      </div>
+
+      <div>
+        <div class="label"><%= t("公司英文名称") %></div>
+        <input name="company_name_en" value="<%= _form.company_name_en || '' %>">
+      </div>
+
+      <div>
+        <div class="label"><%= t("亚马逊公司名称") %></div>
+        <input name="amazon_company_name" value="<%= _form.amazon_company_name || '' %>">
+      </div>
+
+      <div>
+        <div class="label"><%= t("德国 VAT（不重复）") %></div>
+        <input name="vat_no" value="<%= _form.vat_no || '' %>">
+      </div>
+
+      <div>
+        <div class="label"><%= t("统一社会信用代码（不重复）") %></div>
+        <input name="unified_code" value="<%= _form.unified_code || '' %>">
+      </div>
+
+      <div>
+        <div class="label"><%= t("法人") %></div>
+        <input name="legal_person" value="<%= _form.legal_person || '' %>">
+      </div>
+
+      <div>
+        <div class="label"><%= t("注册资本") %></div>
+        <input name="registered_capital" value="<%= _form.registered_capital || '' %>">
+      </div>
+
+      <div>
+        <div class="label"><%= t("注册日期") %></div>
+        <input type="date" name="registration_date" value="<%= _form.registration_date || '' %>">
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="card-head">
+      <div class="card-title"><%= t("联系方式") %></div>
+    </div>
+
+    <div class="form-grid">
+      <div>
+        <div class="label"><%= t("联系人") %></div>
+        <input name="contact_name" value="<%= _form.contact_name || '' %>">
+      </div>
+
+      <div>
+        <div class="label"><%= t("电话") %></div>
+        <input name="phone" value="<%= _form.phone || '' %>">
+      </div>
+
+      <div>
+        <div class="label"><%= t("邮箱") %></div>
+        <input type="email" name="email" value="<%= _form.email || '' %>">
+      </div>
+
+      <div>
+        <div class="label"><%= t("微信号") %></div>
+        <input name="wechat" value="<%= _form.wechat || '' %>">
+      </div>
+
+      <div>
+        <div class="label"><%= t("微信群代码") %></div>
+        <input name="wechat_group_code" value="<%= _form.wechat_group_code || '' %>">
+      </div>
+
+      <div class="span-2">
+        <div class="label"><%= t("微信群图片/二维码 URL") %></div>
+        <input name="wechat_group_qr" value="<%= _form.wechat_group_qr || '' %>">
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="card-head">
+      <div class="card-title"><%= t("收件信息（主收件人）") %></div>
+    </div>
+
+    <div class="form-grid">
+      <div>
+        <div class="label"><%= t("收件人") %>*</div>
+        <input name="receiver_name" value="<%= _form.receiver_name || '' %>" required>
+      </div>
+
+      <div>
+        <div class="label"><%= t("收件电话") %>*</div>
+        <input name="receiver_mobile" value="<%= _form.receiver_mobile || '' %>" required>
+      </div>
+
+      <div>
+        <div class="label"><%= t("省") %>*</div>
+        <input name="receiver_province" value="<%= _form.receiver_province || '' %>" required>
+      </div>
+
+      <div>
+        <div class="label"><%= t("市") %>*</div>
+        <input name="receiver_city" value="<%= _form.receiver_city || '' %>" required>
+      </div>
+
+      <div>
+        <div class="label"><%= t("区/县") %></div>
+        <input name="receiver_county" value="<%= _form.receiver_county || '' %>">
+      </div>
+
+      <div>
+        <div class="label"><%= t("街道/镇") %></div>
+        <input name="receiver_town" value="<%= _form.receiver_town || '' %>">
+      </div>
+
+      <div>
+        <div class="label"><%= t("邮编") %></div>
+        <input name="receiver_postal_code" value="<%= _form.receiver_postal_code || '' %>">
+      </div>
+
+      <div class="span-2">
+        <div class="label"><%= t("详细地址") %>*</div>
+        <input name="receiver_address" value="<%= _form.receiver_address || '' %>" required>
+      </div>
+
+      <div class="span-4">
+        <div class="small muted">
+          <%= t("说明：线索表不保存地址；收件信息保存在 receiver_profiles，推送后会写入 shipments 快照。") %>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="card-head">
+      <div class="card-title"><%= t("营销字段") %></div>
+    </div>
+
+    <div class="form-grid">
+      <div>
+        <div class="label"><%= t("品类") %></div>
+        <input name="category" value="<%= _form.category || '' %>">
+      </div>
+
+      <div>
+        <div class="label"><%= t("官网") %></div>
+        <input name="website" value="<%= _form.website || '' %>">
+      </div>
+
+      <div class="span-2">
+        <div class="label"><%= t("亚马逊店铺链接") %></div>
+        <input name="amazon_shop_url" value="<%= _form.amazon_shop_url || '' %>">
+      </div>
+
+      <div>
+        <div class="label"><%= t("客户等级") %></div>
+        <select name="customer_level">
+          <% (LEVELS||[]).forEach(x => { %>
+            <option value="<%= x %>" <%= (_form.customer_level || 'C')===x ? 'selected':'' %>><%= x %></option>
+          <% }) %>
+        </select>
+      </div>
+
+      <div>
+        <div class="label"><%= t("阶段") %></div>
+        <select name="workflow_stage">
+          <% (STAGES||[]).forEach(x => { %>
+            <option value="<%= x %>" <%= (_form.workflow_stage || '已导入')===x ? 'selected':'' %>><%= x %></option>
+          <% }) %>
+        </select>
+      </div>
+
+      <div>
+        <div class="label"><%= t("优先级") %></div>
+        <select name="priority">
+          <% ['Low','Normal','High'].forEach(p => { %>
+            <option value="<%= p %>" <%= (_form.priority || 'Normal')===p ? 'selected':'' %>><%= p %></option>
+          <% }) %>
+        </select>
+      </div>
+
+      <div>
+        <div class="label"><%= t("来源") %></div>
+        <input name="source" value="<%= _form.source || 'Manual' %>">
+      </div>
+
+      <div class="span-4">
+        <div class="label"><%= t("公司简介") %></div>
+        <textarea name="company_profile" rows="4"><%= _form.company_profile || '' %></textarea>
+      </div>
+    </div>
+
+    <div style="display:flex;justify-content:flex-end;gap:10px;">
+      <a class="btn btn-outline" href="/portal/lead-pool"><%= t("取消") %></a>
+      <button class="btn" type="submit"><%= t("保存") %></button>
+    </div>
+  </form>
+</div>
+
+<style>
+  .page-head{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;margin-bottom:14px;}
+  .page-title{margin:0;font-size:22px;font-weight:700;}
+  .page-sub{margin-top:6px;font-size:12px;color:#6b7280;}
+  .page-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+
+  .card{background:#fff;border:1px solid #eef2f7;border-radius:16px;padding:12px 14px;}
+  .card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+  .card-title{font-weight:700;}
+  .stack{display:grid;gap:12px;}
+  .form-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+  .span-2{grid-column:span 2;}
+  .span-4{grid-column:span 4;}
+  .label{font-size:12px;color:#6b7280;margin-bottom:6px;}
+  input,select,textarea{width:100%;border:1px solid #e5e7eb;border-radius:14px;padding:10px 12px;background:#fff;font-size:13px;outline:none;}
+  textarea{resize:vertical;}
+  .divider{height:1px;background:#f1f5f9;margin:4px 0;}
+  .small{font-size:12px;}
+  .muted{color:#6b7280;}
+
+  .btn{display:inline-flex;align-items:center;justify-content:center;height:34px;padding:0 12px;border-radius:14px;border:1px solid #111827;background:#111827;color:#fff;text-decoration:none;font-size:13px;}
+  .btn-outline{background:#fff;color:#111827;border-color:#e5e7eb;}
+  .alert{padding:10px 12px;border-radius:14px;border:1px solid #e5e7eb;background:#fff;margin-bottom:12px;}
+  .alert-danger{border-color:#fecaca;background:#fef2f2;color:#991b1b;}
+
+  @media (max-width: 980px){
+    .form-grid{grid-template-columns:1fr;}
+    .span-2,.span-4{grid-column:span 1;}
+  }
+</style>

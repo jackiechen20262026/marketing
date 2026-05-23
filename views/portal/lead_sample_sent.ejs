@@ -1,0 +1,425 @@
+<%
+// views/portal/lead_sample_sent.ejs (Card CRM版)
+// 已寄样品：sample_tracking_no 不为空
+// 页面布局与需求页一致：卡片 + 进度条 + 下一步（多任务 pill）+ 统计
+
+const rowsSafe = rows || [];
+const pg = pagination || { page: 1, pageSize: 20, total: 0, totalPages: 1 };
+const keywordSafe = keyword || '';
+const qsBase = `keyword=${encodeURIComponent(keywordSafe || '')}`;
+
+const TASK_NAME_MAP = {
+  conv_group_due: "建微信群",
+  conv_sample_due: "寄样品+填单号",
+  conv_deal_due: "推进成交",
+  routine_visit_due: "周期拜访",
+  routine_wechat_due: "微信沟通（传截图）",
+};
+
+function fmtDate(v){
+  if(!v) return '';
+  const d = new Date(v);
+  if(Number.isNaN(d.getTime())) return '';
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+function daysLeft(dueAt){
+  if(!dueAt) return null;
+  const t = new Date(dueAt).getTime();
+  if(!Number.isFinite(t)) return null;
+  return Math.ceil((t - Date.now()) / (24*3600*1000));
+}
+function safeText(v){
+  if(v==null) return '-';
+  const s = String(v).trim();
+  return s ? s : '-';
+}
+
+const STEPS = [
+  { i:1, label:'加微信',  cycle:'7天内建群' },
+  { i:2, label:'建群',    cycle:'60天内寄样品 · 拜访3次' },
+  { i:3, label:'寄样品',  cycle:'15天内推进成交' },
+  { i:4, label:'成交',    cycle:'完成' },
+];
+
+function calcStep(r){
+  const hasWechat = !!(r.wechat && String(r.wechat).trim());
+  const hasGroup  = !!(r.wechat_group_code && String(r.wechat_group_code).trim());
+  const hasSample = !!(r.sample_tracking_no && String(r.sample_tracking_no).trim());
+  const stage = String(r.workflow_stage || '').trim();
+  const isDeal = stage === '已成交';
+  if(isDeal) return 4;
+  if(hasSample) return 3;
+  if(hasGroup) return 2;
+  if(hasWechat) return 1;
+  return 0;
+}
+function stepLabel(step){
+  const hit = STEPS.find(x=>x.i===step);
+  return hit ? hit.label : '未开始';
+}
+function stepCycle(step){
+  const hit = STEPS.find(x=>x.i===step);
+  return hit ? hit.cycle : '';
+}
+function stepPercent(step){
+  const s = Math.max(0, Math.min(4, Number(step || 0)));
+  return Math.round((s / 4) * 100);
+}
+
+function parseNextTasks(r){
+  const dueAt = r.next_task_due_at || null;
+  const left = daysLeft(dueAt);
+  const overdue = (left!=null && left < 0);
+
+  const typesRaw = r.next_task_types ? String(r.next_task_types) : '';
+  const types = typesRaw
+    ? Array.from(new Set(typesRaw.split(',').map(x=>x.trim()).filter(Boolean)))
+    : [];
+  const names = types.map(tp => TASK_NAME_MAP[tp] || tp);
+
+  return { dueAt, left, overdue, names };
+}
+%>
+
+<div class="page">
+  <div class="page__header page__header--sticky">
+    <div class="titlebox">
+      <div class="h1"><%= t("已寄样品") %></div>
+      <div class="sub"><%= t("标准：有样品单号（sample_tracking_no 不为空）") %></div>
+    </div>
+    <div class="page__actions">
+      <a class="btn btn--ghost" href="/portal/lead-pool"><%= t("返回线索池") %></a>
+    </div>
+  </div>
+
+  <% if (success) { %><div class="alert alert--ok"><%= success %></div><% } %>
+  <% if (error) { %><div class="alert alert--err"><%= error %></div><% } %>
+
+  <div class="card">
+    <div class="card__hd">
+      <div class="card__title"><%= t("筛选") %></div>
+      <div class="muted small"><%= t("共") %> <%= pg.total %> <%= t("条") %></div>
+    </div>
+    <form class="filters" method="get" action="/portal/leads/sample-sent">
+      <input class="input" name="keyword" value="<%= keywordSafe %>" placeholder="<%= t("搜索：公司名 / 联系人 / 微信 / 电话 / 单号 / 类目") %>">
+      <button class="btn btn--primary" type="submit"><%= t("查询") %></button>
+      <a class="btn btn--ghost" href="/portal/leads/sample-sent"><%= t("清空") %></a>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="card__hd">
+      <div class="card__title"><%= t("列表") %></div>
+      <div class="muted small"><%= t("第") %> <%= pg.page %> / <%= pg.totalPages %> <%= t("页") %></div>
+    </div>
+
+    <div class="cards">
+      <% if (!rowsSafe.length) { %>
+        <div class="empty muted"><%= t("暂无数据") %></div>
+      <% } %>
+
+      <% rowsSafe.forEach(r => {
+        const step = calcStep(r);
+        const curLabel = stepLabel(step);
+        const curCycle = stepCycle(step);
+        const pct = stepPercent(step);
+
+        const { dueAt, left, overdue, names: nextNames } = parseNextTasks(r);
+
+        // 寄样品阶段这里一般是 step=3，不显示 step2 的拜访规则
+      %>
+
+      <div class="leadCard">
+        <div class="leadCard__top">
+          <div class="leadLeft">
+            <div class="leadRow">
+              <span class="leadId">#<%= r.id %></span>
+              <div class="leadName" title="<%= r.company_name || '-' %>"><%= r.company_name || '-' %></div>
+            </div>
+
+            <div class="leadMeta">
+              <span class="metaItem">类目：<span class="metaValue"><%= safeText(r.category) %></span></span>
+              <span class="metaItem">等级：<span class="tag tag--soft"><%= safeText(r.customer_level) %></span></span>
+              <span class="metaItem">阶段：<span class="tag"><%= safeText(r.workflow_stage) %></span></span>
+              <span class="metaItem muted small">更新时间：<span class="mono"><%= fmtDate(r.updated_at || r.created_at) %></span></span>
+              <span class="metaItem">单号：<span class="tag tag--soft mono"><%= safeText(r.sample_tracking_no) %></span></span>
+            </div>
+          </div>
+
+          <div class="leadRight">
+            <a class="opMain" href="/portal/leads/<%= r.id %>">详情</a>
+            <a class="opGhost" href="/portal/leads/<%= r.id %>/plans">计划</a>
+            <a class="opGhost" href="/portal/leads/<%= r.id %>/visit">拜访</a>
+          </div>
+        </div>
+
+        <div class="leadCard__body">
+          <!-- 进度块 -->
+          <div class="block">
+            <div class="block__hd">
+              <div class="block__title">进度</div>
+              <div class="muted small">当前：<span class="strong"><%= curLabel %></span><% if(curCycle){ %> · <%= curCycle %><% } %></div>
+            </div>
+
+            <div class="pbar">
+              <div class="pbar__track">
+                <div class="pbar__fill" style="width:<%= pct %>%"></div>
+              </div>
+              <div class="pbar__meta">
+                <span class="muted small">进度 <span class="mono"><%= pct %>%</span></span>
+                <span class="muted small steps">
+                  <span class="<%= step>=1 ? 'on' : '' %>">加微信</span><span class="sep">·</span>
+                  <span class="<%= step>=2 ? 'on' : '' %>">建群</span><span class="sep">·</span>
+                  <span class="<%= step>=3 ? 'on' : '' %>">寄样品</span><span class="sep">·</span>
+                  <span class="<%= step>=4 ? 'on' : '' %>">成交</span>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 下一步块（多任务） -->
+          <div class="block">
+            <div class="block__hd">
+              <div class="block__title">下一步</div>
+            </div>
+
+            <% if (nextNames && nextNames.length) { %>
+              <div class="nextLine">
+                <div class="pillRow">
+                  <% nextNames.forEach(name => { %>
+                    <span class="pill <%= overdue ? 'pill--danger' : 'pill--soft' %>"><%= name %></span>
+                  <% }) %>
+                </div>
+
+                <span class="muted small mono">
+                  <%= fmtDate(dueAt) %>
+                  <% if (left!=null) { %>
+                    · <span class="<%= overdue ? 'danger' : '' %>">
+                      <%= overdue ? ('逾期 ' + Math.abs(left) + ' 天') : ('剩余 ' + left + ' 天') %>
+                    </span>
+                  <% } %>
+                </span>
+              </div>
+            <% } else { %>
+              <div class="muted small">—</div>
+            <% } %>
+          </div>
+
+          <!-- 数据块 -->
+          <div class="block stats">
+            <div class="block__hd">
+              <div class="block__title">数据</div>
+            </div>
+
+            <div class="statsGrid">
+              <div class="stat">
+                <div class="stat__k muted small">发信</div>
+                <div class="stat__v mono"><%= Number(r.mail_count || 0) %></div>
+              </div>
+              <div class="stat">
+                <div class="stat__k muted small">拜访</div>
+                <div class="stat__v mono"><%= Number(r.visit_count || 0) %></div>
+              </div>
+              <div class="stat">
+                <div class="stat__k muted small">跟进</div>
+                <div class="stat__v mono"><%= Number(r.followup_count || 0) %></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <% }) %>
+    </div>
+
+    <div class="pager">
+      <div class="muted small"><%= t("第") %> <%= pg.page %> / <%= pg.totalPages %> <%= t("页") %></div>
+      <div class="pager__actions">
+        <a class="btn btn--ghost <%= pg.page<=1 ? 'btn--disabled' : '' %>"
+          href="/portal/leads/sample-sent?<%= qsBase %>&page=<%= Math.max(1, pg.page-1) %>">上一页</a>
+        <a class="btn btn--ghost <%= pg.page>=pg.totalPages ? 'btn--disabled' : '' %>"
+          href="/portal/leads/sample-sent?<%= qsBase %>&page=<%= Math.min(pg.totalPages, pg.page+1) %>">下一页</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .page__header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:14px;}
+  .page__header--sticky{position:sticky;top:0;z-index:20;background:var(--bg,#f8fafc);padding:14px 0;border-bottom:1px solid rgba(0,0,0,.06);}
+  .h1{font-size:18px;font-weight:500;color:var(--text,#111827);letter-spacing:-.2px;}
+  .sub{margin-top:6px;font-size:12px;color:var(--muted,#6b7280);}
+  .page__actions{display:flex;gap:10px;flex-wrap:wrap;}
+
+  .small{font-size:12px;}
+  .muted{color:var(--muted,#6b7280);}
+  .danger{color:#b91c1c;}
+  .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;}
+  .strong{font-weight:600;color:#0f172a;}
+  .on{color:#0f172a;font-weight:500;}
+
+  .alert{margin:0 0 12px 0;padding:10px 12px;border-radius:12px;font-size:13px;border:1px solid rgba(0,0,0,.08);background:#fff;}
+  .alert--ok{border-color:#bbf7d0;background:#f0fdf4;color:#166534;}
+  .alert--err{border-color:#fecaca;background:#fef2f2;color:#991b1b;}
+
+  .card{background:#fff;border:1px solid rgba(0,0,0,.06);border-radius:12px;margin:0 0 12px 0;box-shadow:0 1px 2px rgba(16,24,40,0.04);}
+  .card__hd{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid rgba(0,0,0,.06);}
+  .card__title{font-weight:500;color:var(--text,#111827);}
+
+  .filters{padding:12px 14px;display:grid;grid-template-columns:1fr 120px 120px;gap:10px;align-items:center;}
+  .input{height:38px;border:1px solid rgba(0,0,0,.10);border-radius:10px;padding:0 12px;background:#fff;font-size:13px;outline:none;}
+  .input:focus{border-color:rgba(0,0,0,.25);box-shadow:0 0 0 3px rgba(148,163,184,0.15);}
+  .btn{display:inline-flex;align-items:center;justify-content:center;height:38px;padding:0 14px;border-radius:10px;border:1px solid rgba(0,0,0,.10);background:#fff;color:#111827;text-decoration:none;font-size:13px;font-weight:400;cursor:pointer;}
+  .btn--primary{border-color:#111827;background:#111827;color:#fff;font-weight:500;}
+  .btn--ghost{background:#fff;}
+  .btn--disabled{pointer-events:none;opacity:.45;}
+
+  .tag{
+    display:inline-flex;align-items:center;
+    padding:5px 10px;border-radius:999px;
+    background:#f3f4f6;color:#334155;font-size:12px;font-weight:500;
+    border:1px solid rgba(0,0,0,.08);
+    white-space:nowrap;
+  }
+  .tag--soft{background:#f8fafc;color:#334155;border-color:rgba(0,0,0,.08);}
+
+  .cards{
+    padding:14px;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+  }
+
+  .leadCard{
+    border:1px solid rgba(0,0,0,.08);
+    border-radius:14px;
+    background:#fff;
+    overflow:hidden;
+  }
+  .leadCard:hover{
+    box-shadow:0 10px 30px rgba(15,23,42,.06);
+    border-color:rgba(0,0,0,.12);
+  }
+
+  .leadCard__top{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:14px;
+    padding:14px 14px 12px 14px;
+    border-bottom:1px solid rgba(0,0,0,.06);
+    background:#fbfcfe;
+  }
+
+  .leadLeft{min-width:0;display:flex;flex-direction:column;gap:8px;}
+  .leadRow{display:flex;gap:10px;align-items:center;min-width:0;}
+  .leadId{
+    display:inline-flex;align-items:center;flex:0 0 auto;
+    height:22px;padding:0 10px;border-radius:999px;
+    border:1px solid rgba(0,0,0,.10);background:#fff;
+    color:#334155;font-size:12px;font-weight:500;
+  }
+  .leadName{
+    font-size:14px;font-weight:600;color:#0f172a;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .leadMeta{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+  .metaItem{font-size:12px;color:#475569;}
+  .metaValue{font-weight:500;color:#0f172a;}
+
+  .leadRight{display:flex;gap:10px;align-items:center;flex-wrap:wrap;white-space:nowrap;}
+  .opMain{
+    display:inline-flex;align-items:center;justify-content:center;
+    height:34px;padding:0 12px;border-radius:10px;
+    border:1px solid #111827;background:#111827;color:#fff;
+    font-size:13px;font-weight:500;text-decoration:none;
+  }
+  .opGhost{
+    display:inline-flex;align-items:center;justify-content:center;
+    height:34px;padding:0 12px;border-radius:10px;
+    border:1px solid rgba(0,0,0,.10);background:#fff;color:#0f172a;
+    font-size:13px;font-weight:400;text-decoration:none;
+  }
+  .opGhost:hover{border-color:rgba(0,0,0,.18);background:#fbfcfe;}
+
+  .leadCard__body{
+    padding:14px;
+    display:grid;
+    grid-template-columns: 1.4fr 1fr 280px;
+    gap:12px;
+    align-items:start;
+  }
+
+  .block{
+    border:1px solid rgba(0,0,0,.06);
+    border-radius:12px;
+    padding:12px;
+    background:#fff;
+  }
+  .block__hd{
+    display:flex;
+    justify-content:space-between;
+    gap:10px;
+    align-items:baseline;
+    margin-bottom:10px;
+  }
+  .block__title{
+    font-size:13px;
+    font-weight:600;
+    color:#0f172a;
+  }
+
+  .pbar{display:flex;flex-direction:column;gap:8px;}
+  .pbar__track{height:6px;border-radius:999px;background:#e5e7eb;overflow:hidden;}
+  .pbar__fill{height:100%;border-radius:999px;background:#111827;transition:width .2s ease;}
+  .pbar__meta{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+  .sep{opacity:.45;margin:0 6px;}
+  .steps{white-space:nowrap;}
+
+  .pill{
+    display:inline-flex;align-items:center;
+    height:26px;padding:0 10px;border-radius:999px;
+    border:1px solid rgba(0,0,0,.10);
+    font-size:12px;font-weight:500;
+    background:#fff;
+    white-space:nowrap;
+  }
+  .pill--soft{background:#f8fafc;color:#0f172a;border-color:rgba(0,0,0,.10);}
+  .pill--danger{background:#fef2f2;color:#991b1b;border-color:#fecaca;}
+
+  .nextLine{display:flex;flex-direction:column;gap:8px;}
+  .pillRow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+
+  .statsGrid{
+    display:grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap:10px;
+  }
+  .stat{
+    border:1px solid rgba(0,0,0,.06);
+    border-radius:12px;
+    padding:10px 10px;
+    background:#fbfcfe;
+  }
+  .stat__v{font-size:16px;font-weight:600;color:#0f172a;margin-top:2px;}
+
+  .empty{padding:14px;color:var(--muted,#6b7280);}
+
+  .pager{display:flex;justify-content:space-between;align-items:center;margin:12px 14px 14px 14px;}
+  .pager__actions{display:flex;gap:10px;}
+
+  @media (max-width: 1100px){
+    .leadCard__body{grid-template-columns:1fr 1fr; }
+    .stats{grid-column: 1 / -1;}
+  }
+  @media (max-width: 980px){
+    .filters{grid-template-columns:1fr;}
+    .leadCard__top{flex-direction:column;align-items:flex-start;}
+    .leadRight{width:100%;}
+    .leadCard__body{grid-template-columns:1fr;}
+    .steps{white-space:normal;}
+  }
+</style>

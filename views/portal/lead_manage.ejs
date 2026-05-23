@@ -1,0 +1,96 @@
+<%
+// views/portal/lead_manage.ejs
+// 说明：列表不展示 vat_no / unified_code
+// ✅ 需要后端 rows 里带：mail_count / visit_count / followup_count（你已经在 lead.service.js 的 listLeads 做了）
+// ✅ brand / sample_tracking_no 也会从 leads 表带出来（已在 lead.service.js create/update 支持）
+const rowsSafe = rows || [];
+%>
+
+<div class="page-head">
+  <div>
+    <h1 class="page-title"><%= t("线索管理") %></h1>
+    <div class="page-sub"><%= t("用于批次内勾选线索（列表不显示 VAT/统一号）") %></div>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-outline" href="/portal/batches"><%= t("返回批次") %></a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head">
+    <div class="card-title"><%= t("线索列表") %></div>
+    <div class="muted small"><%= t("统计：发信(批次次数) / 拜访次数 / 跟进次数") %></div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:90px;">ID</th>
+          <th>公司名称</th>
+          <th style="width:180px;">收件信息</th>
+          <th style="width:140px;">省市</th>
+
+          <th style="width:90px;">发信</th>
+          <th style="width:90px;">拜访</th>
+          <th style="width:90px;">跟进</th>
+
+          <th style="width:120px;">品牌</th>
+          <th style="width:180px;">样品单号</th>
+
+          <th style="width:90px;">等级</th>
+          <th style="width:120px;">阶段</th>
+          <th style="width:140px;">操作</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <% if (!rowsSafe.length) { %>
+          <tr>
+            <td colspan="12" class="muted" style="text-align:center;padding:22px;">
+              <%= t("暂无数据") %>
+            </td>
+          </tr>
+        <% } else { %>
+          <% rowsSafe.forEach(r => { %>
+            <tr>
+              <td class="mono"><%= r.id %></td>
+
+              <td>
+                <div style="font-weight:600;"><%= r.company_name || '-' %></div>
+                <div class="small muted">
+                  <%= [r.contact_name, r.phone].filter(Boolean).join(" · ") %>
+                </div>
+              </td>
+
+              <td>
+                <div style="font-weight:600;"><%= r.receiver_name || "-" %></div>
+                <div class="small mono"><%= r.receiver_mobile || "" %></div>
+              </td>
+
+              <td><%= [r.receiver_province, r.receiver_city].filter(Boolean).join(" ") || "" %></td>
+
+              <!-- ✅ 统计：发信/拜访/跟进 -->
+              <td class="mono"><span class="pill"><%= Number(r.mail_count || 0) %></span></td>
+              <td class="mono"><span class="pill"><%= Number(r.visit_count || 0) %></span></td>
+              <td class="mono"><span class="pill"><%= Number(r.followup_count || 0) %></span></td>
+
+              <!-- ✅ 新增字段 -->
+              <td><%= r.brand || '-' %></td>
+              <td class="mono"><%= r.sample_tracking_no || '-' %></td>
+
+              <td><span class="pill"><%= r.customer_level || "" %></span></td>
+              <td><span class="tag"><%= r.workflow_stage || "" %></span></td>
+
+              <td>
+                <a class="link" href="/portal/leads/<%= r.id %>"><%= t("详情") %></a>
+                &nbsp;·&nbsp;
+                <a class="link" href="/portal/leads/<%= r.id %>/edit"><%= t("编辑") %></a>
+              </td>
+            </tr>
+          <% }) %>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+</div>
