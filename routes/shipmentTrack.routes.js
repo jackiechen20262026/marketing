@@ -5,9 +5,13 @@ import {
   trackDetailApi,
   trackLogsPage,
 } from "../controllers/shipmentTrack.controller.js";
+import { leadTracksPage } from "../controllers/leadTrack.controller.js";
 
 export default function shipmentTrackRoutes() {
   const router = Router();
+
+  // 客人线索 + 圆通轨迹合并页
+  router.get("/lead-tracks", leadTracksPage);
 
   // 圆通轨迹汇总页
   router.get("/tracks", trackSummaryPage);
