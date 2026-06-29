@@ -3,6 +3,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import * as leadController from "../controllers/lead.controller.js";
+import { leadPoolMergedPage } from "../controllers/leadTrack.controller.js";
 
 function ensureDir(dir) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -57,7 +58,7 @@ export default function leadRoutes() {
     },
   });
 
-  router.get("/lead-pool", leadController.poolPage);
+  router.get("/lead-pool", leadPoolMergedPage);
 
   router.get("/leads/demand", leadController.demandPage);
   router.get("/leads/partner-intent", leadController.partnerIntentPage);
