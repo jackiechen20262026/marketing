@@ -6,6 +6,8 @@ const pg = pagination || { page: 1, pageSize: 20, total: 0, totalPages: 1 };
 const keywordSafe = keyword || '';
 const stageSafe = stage || '';
 const levelSafe = level || '';
+const yto = (typeof ytoSummary !== 'undefined' && ytoSummary) ? ytoSummary : { total: 0, withTrack: 0, signed: 0, exception: 0, inTransit: 0, noTrack: 0 };
+const ytoRangeSafe = (typeof ytoRange !== 'undefined' && ytoRange) ? String(ytoRange) : '90';
 const qsBase = `keyword=${encodeURIComponent(keywordSafe || '')}&stage=${encodeURIComponent(stageSafe || '')}&level=${encodeURIComponent(levelSafe || '')}`;
 function fmtDate(v){
   if(!v) return '';
@@ -20,6 +22,14 @@ function safeText(v){
   if(v==null) return '-';
   const s = String(v).trim();
   return s ? s : '-';
+}
+function trackClass(v){
+  const st = String(v || '').toUpperCase();
+  if(st === 'SIGNED') return 'ok';
+  if(st === 'EXCEPTION') return 'bad';
+  if(st === 'IN_TRANSIT') return 'warn';
+  if(st === 'NO_TRACK') return 'soft';
+  return '';
 }
 %>
 
@@ -40,11 +50,45 @@ function safeText(v){
 
       <a class="btn btn--ghost" href="/portal/plans"><%= t("总计划") %></a>
       <a class="btn btn--ghost" href="/portal/followups"><%= t("跟进列表") %></a>
+      <a class="btn btn--ghost" href="/shipments/lead-tracks?range=<%= encodeURIComponent(ytoRangeSafe) %>"><%= t("客人轨迹") %></a>
     </div>
   </div>
 
   <% if (success) { %><div class="alert alert--ok"><%= success %></div><% } %>
   <% if (error) { %><div class="alert alert--err"><%= error %></div><% } %>
+
+  <div class="card ytoSummary">
+    <div class="card__hd">
+      <div class="card__title"><%= t("圆通轨迹汇总") %> <span class="muted small">(<%= ytoRangeSafe === 'all' ? t("全部") : t("近90天") %>)</span></div>
+      <a class="link small" href="/shipments/lead-tracks?range=<%= encodeURIComponent(ytoRangeSafe) %>"><%= t("查看客人轨迹") %></a>
+    </div>
+    <div class="ytoGrid">
+      <a class="ytoStat" href="/shipments/lead-tracks?range=<%= encodeURIComponent(ytoRangeSafe) %>">
+        <span><%= t("当前线索") %></span>
+        <strong><%= Number(yto.total || 0) %></strong>
+      </a>
+      <a class="ytoStat" href="/shipments/lead-tracks?range=<%= encodeURIComponent(ytoRangeSafe) %>">
+        <span><%= t("有圆通") %></span>
+        <strong><%= Number(yto.withTrack || 0) %></strong>
+      </a>
+      <a class="ytoStat ok" href="/shipments/lead-tracks?range=<%= encodeURIComponent(ytoRangeSafe) %>&trackStatus=SIGNED">
+        <span><%= t("已签收") %></span>
+        <strong><%= Number(yto.signed || 0) %></strong>
+      </a>
+      <a class="ytoStat bad" href="/shipments/lead-tracks?range=<%= encodeURIComponent(ytoRangeSafe) %>&trackStatus=EXCEPTION">
+        <span><%= t("异常") %></span>
+        <strong><%= Number(yto.exception || 0) %></strong>
+      </a>
+      <a class="ytoStat warn" href="/shipments/lead-tracks?range=<%= encodeURIComponent(ytoRangeSafe) %>&trackStatus=IN_TRANSIT">
+        <span><%= t("运输中") %></span>
+        <strong><%= Number(yto.inTransit || 0) %></strong>
+      </a>
+      <a class="ytoStat soft" href="/shipments/lead-tracks?range=<%= encodeURIComponent(ytoRangeSafe) %>&trackStatus=NO_TRACK">
+        <span><%= t("无轨迹") %></span>
+        <strong><%= Number(yto.noTrack || 0) %></strong>
+      </a>
+    </div>
+  </div>
 
   <div class="card">
     <div class="card__hd">
@@ -115,11 +159,15 @@ function safeText(v){
         <div class="empty muted"><%= t("暂无数据") %></div>
       <% } %>
 
-      <% rowsSafe.forEach(r => { 
+      <% rowsSafe.forEach(r => {
         const contact = r.contact_name || r.receiver_name || '-';
         const phone = r.phone || r.receiver_mobile || '-';
         const wechat = r.wechat || '-';
         const updated = fmtDate(r.updated_at || r.created_at);
+        const trackStatus = r.merged_track_status || 'NO_TRACK';
+        const trackLabel = r.merged_track_status_label || '无轨迹';
+        const trackTime = r.latest_track_time || r.latest_track_updated_at || '';
+        const trackKeyword = r.latest_waybill_no || r.company_name || '';
       %>
         <div class="leadCard">
           <div class="leadCard__top">
@@ -140,12 +188,16 @@ function safeText(v){
                 <span class="metaItem">类目：<span class="metaValue"><%= safeText(r.category) %></span></span>
                 <span class="metaItem">阶段：<span class="tag"><%= safeText(r.workflow_stage) %></span></span>
                 <span class="metaItem">等级：<span class="tag tag--soft"><%= safeText(r.customer_level) %></span></span>
+                <span class="metaItem">圆通：<span class="trackPill <%= trackClass(trackStatus) %>"><%= safeText(trackLabel) %></span></span>
                 <span class="metaItem muted small">更新时间：<span class="mono"><%= updated %></span></span>
               </div>
             </div>
 
             <div class="leadRight">
               <a class="opMain" href="/portal/leads/<%= r.id %>"><%= t("详情") %></a>
+              <% if (r.latest_shipment_id) { %>
+                <a class="opGhost" href="/shipments/lead-tracks?keyword=<%= encodeURIComponent(trackKeyword) %>&range=<%= encodeURIComponent(ytoRangeSafe) %>"><%= t("轨迹") %></a>
+              <% } %>
               <a class="opGhost" href="/portal/leads/<%= r.id %>/plans"><%= t("计划") %></a>
               <a class="opGhost" href="/portal/leads/<%= r.id %>/visit"><%= t("拜访") %></a>
               <form method="post" action="/portal/leads/<%= r.id %>/priority-send" class="inline">
@@ -198,6 +250,37 @@ function safeText(v){
                 <div class="stat">
                   <div class="stat__k muted small"><%= t("跟进") %></div>
                   <div class="stat__v mono"><%= Number(r.followup_count || 0) %></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="block ytoBlock">
+              <div class="block__hd">
+                <div class="block__title"><%= t("圆通轨迹") %></div>
+                <span class="trackPill <%= trackClass(trackStatus) %>"><%= safeText(trackLabel) %></span>
+              </div>
+
+              <div class="trackHead">
+                <span class="muted small"><%= t("运单") %></span>
+                <span class="mono small"><%= safeText(r.latest_waybill_no) %></span>
+              </div>
+
+              <div class="kv ytoKv">
+                <div class="kv__row">
+                  <div class="kv__k muted small"><%= t("签收方式") %></div>
+                  <div class="kv__v"><%= safeText(r.signReceiveType) %></div>
+                </div>
+                <div class="kv__row">
+                  <div class="kv__k muted small"><%= t("轨迹时间") %></div>
+                  <div class="kv__v mono"><%= safeText(trackTime) %></div>
+                </div>
+                <div class="kv__row kv__row--top">
+                  <div class="kv__k muted small"><%= t("最新轨迹") %></div>
+                  <div class="kv__v trackDesc"><%= safeText(r.latest_track_desc || (r.track_diagnosis && r.track_diagnosis.label)) %></div>
+                </div>
+                <div class="kv__row kv__row--top">
+                  <div class="kv__k muted small"><%= t("开发建议") %></div>
+                  <div class="kv__v trackDesc"><%= safeText(r.development_advice) %></div>
                 </div>
               </div>
             </div>
@@ -262,6 +345,7 @@ function safeText(v){
   .small{font-size:12px;}
   .muted{color:var(--muted,#6b7280);}
   .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;}
+  .link{color:#111827;text-decoration:underline;text-underline-offset:2px;}
   .btn{display:inline-flex;align-items:center;justify-content:center;height:38px;padding:0 14px;border-radius:10px;border:1px solid rgba(0,0,0,.10);background:#fff;color:#111827;text-decoration:none;font-size:13px;font-weight:400;cursor:pointer;}
   .btn--primary{border-color:#111827;background:#111827;color:#fff;font-weight:500;}
   .btn--ghost{background:#fff;}
@@ -272,8 +356,18 @@ function safeText(v){
   .alert--err{border-color:#fecaca;background:#fef2f2;color:#991b1b;}
 
   .card{background:#fff;border:1px solid rgba(0,0,0,.06);border-radius:12px;margin:0 0 12px 0;box-shadow:0 1px 2px rgba(16,24,40,0.04);}
-  .card__hd{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid rgba(0,0,0,.06);}
+  .card__hd{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid rgba(0,0,0,.06);gap:12px;}
   .card__title{font-weight:500;color:var(--text,#111827);}
+
+  .ytoGrid{padding:14px;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;}
+  .ytoStat{border:1px solid rgba(0,0,0,.06);border-radius:12px;padding:12px;background:#fbfcfe;text-decoration:none;color:#0f172a;min-width:0;}
+  .ytoStat:hover{border-color:rgba(0,0,0,.14);background:#fff;}
+  .ytoStat span{display:block;color:#64748b;font-size:12px;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .ytoStat strong{font-size:22px;font-weight:600;line-height:1.1;}
+  .ytoStat.ok strong{color:#1d4ed8;}
+  .ytoStat.bad strong{color:#dc2626;}
+  .ytoStat.warn strong{color:#b45309;}
+  .ytoStat.soft strong{color:#64748b;}
 
   .filters{padding:12px 14px;display:grid;grid-template-columns:1fr 200px 200px 120px 120px;gap:10px;align-items:center;}
   .input{height:38px;border:1px solid rgba(0,0,0,.10);border-radius:10px;padding:0 12px;background:#fff;font-size:13px;outline:none;}
@@ -342,6 +436,16 @@ function safeText(v){
     white-space:nowrap;
   }
   .tag--soft{background:#f8fafc;color:#334155;border-color:rgba(0,0,0,.08);}
+  .trackPill{
+    display:inline-flex;align-items:center;justify-content:center;
+    min-height:24px;padding:2px 10px;border-radius:999px;
+    background:#f1f5f9;color:#334155;border:1px solid #e2e8f0;
+    font-size:12px;font-weight:600;white-space:nowrap;
+  }
+  .trackPill.ok{background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;}
+  .trackPill.bad{background:#fff5f5;color:#dc2626;border-color:#fecaca;}
+  .trackPill.warn{background:#fffbeb;color:#b45309;border-color:#fde68a;}
+  .trackPill.soft{background:#f8fafc;color:#64748b;border-color:#e2e8f0;}
 
   .leadRight{display:flex;gap:10px;align-items:center;flex-wrap:wrap;white-space:nowrap;}
   .opMain{
@@ -362,7 +466,7 @@ function safeText(v){
   .leadCard__body{
     padding:14px;
     display:grid;
-    grid-template-columns: 1.2fr 320px;
+    grid-template-columns: 1.1fr 280px 360px;
     gap:12px;
     align-items:start;
   }
@@ -388,8 +492,12 @@ function safeText(v){
 
   .kv{display:flex;flex-direction:column;gap:10px;}
   .kv__row{display:flex;justify-content:space-between;gap:10px;align-items:center;}
+  .kv__row--top{align-items:flex-start;}
   .kv__k{flex:0 0 64px;}
   .kv__v{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#0f172a;font-size:13px;font-weight:500;}
+  .ytoKv .kv__k{flex-basis:68px;}
+  .trackHead{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;}
+  .trackDesc{white-space:normal;overflow:visible;text-overflow:clip;line-height:1.45;}
 
   .statsGrid{
     display:grid;
@@ -410,13 +518,24 @@ function safeText(v){
   .pager{display:flex;justify-content:space-between;align-items:center;margin:12px 14px 14px 14px;}
   .pager__actions{display:flex;gap:10px;}
 
+  @media (max-width: 1280px){
+    .leadCard__body{grid-template-columns:1fr 320px;}
+    .ytoBlock{grid-column:1/-1;}
+    .ytoGrid{grid-template-columns:repeat(3,minmax(0,1fr));}
+  }
   @media (max-width: 1100px){
     .leadCard__body{grid-template-columns:1fr;}
+    .ytoBlock{grid-column:auto;}
   }
   @media (max-width: 980px){
     .filters{grid-template-columns:1fr;}
     .leadCard__top{flex-direction:column;align-items:flex-start;}
     .leadRight{width:100%;}
     .bulkbar__hint{margin-left:0;}
+  }
+  @media (max-width: 700px){
+    .ytoGrid{grid-template-columns:1fr 1fr;}
+    .card__hd{align-items:flex-start;}
+    .pager{flex-direction:column;align-items:flex-start;gap:10px;}
   }
 </style>
