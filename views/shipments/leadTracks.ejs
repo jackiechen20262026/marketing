@@ -1,0 +1,301 @@
+<%
+const rowsSafe = Array.isArray(rows) ? rows : [];
+const pg = pagination || { page: 1, pageSize: 50, total: 0, totalPages: 1 };
+const sum = summary || { total: 0, withTrack: 0, signed: 0, exception: 0, inTransit: 0, noTrack: 0 };
+
+const keywordSafe = keyword || '';
+const stageSafe = stage || '';
+const trackStatusSafe = trackStatus || '';
+const signTypeSafe = signType || '';
+const rangeSafe = range || '90';
+const showClosedSafe = !!showClosed;
+const baseQs = `keyword=${encodeURIComponent(keywordSafe)}&stage=${encodeURIComponent(stageSafe)}&trackStatus=${encodeURIComponent(trackStatusSafe)}&signType=${encodeURIComponent(signTypeSafe)}&range=${encodeURIComponent(rangeSafe)}&show_closed=${showClosedSafe ? '1' : ''}&pageSize=${pg.pageSize}`;
+
+function safeText(v){
+  if(v == null) return '-';
+  const t = String(v).trim();
+  return t ? t : '-';
+}
+function fmtDT(v){
+  if(!v) return '-';
+  const d = new Date(v);
+  if(Number.isNaN(d.getTime())) return String(v);
+  return d.toLocaleString();
+}
+function statusClass(v){
+  const st = String(v || '').toUpperCase();
+  if(st === 'SIGNED') return 'ok';
+  if(st === 'EXCEPTION') return 'bad';
+  if(st === 'IN_TRANSIT') return 'warn';
+  if(st === 'NO_TRACK') return 'soft';
+  return '';
+}
+%>
+
+<div class="lt-page">
+  <div class="lt-head">
+    <div>
+      <div class="lt-title">客人线索 + 圆通轨迹</div>
+      <div class="lt-sub">以客人为主，把最近一票圆通轨迹、签收方式和开发建议合在一起看。</div>
+    </div>
+
+    <div class="lt-actions">
+      <a class="lt-btn ghost" href="/portal/lead-pool">线索池</a>
+      <a class="lt-btn ghost" href="/shipments/tracks?range=<%= encodeURIComponent(rangeSafe) %>">圆通轨迹原表</a>
+    </div>
+  </div>
+
+  <% if (success) { %><div class="lt-alert ok"><%= success %></div><% } %>
+  <% if (error) { %><div class="lt-alert bad"><%= error %></div><% } %>
+
+  <div class="lt-stats">
+    <a class="lt-stat" href="/shipments/lead-tracks?<%= baseQs %>&trackStatus=">
+      <span>当前客人</span><strong><%= sum.total %></strong>
+    </a>
+    <a class="lt-stat" href="/shipments/lead-tracks?<%= baseQs %>&trackStatus=SIGNED">
+      <span>已签收</span><strong><%= sum.signed %></strong>
+    </a>
+    <a class="lt-stat danger" href="/shipments/lead-tracks?<%= baseQs %>&trackStatus=EXCEPTION">
+      <span>异常</span><strong><%= sum.exception %></strong>
+    </a>
+    <a class="lt-stat warn" href="/shipments/lead-tracks?<%= baseQs %>&trackStatus=IN_TRANSIT">
+      <span>在途</span><strong><%= sum.inTransit %></strong>
+    </a>
+    <a class="lt-stat soft" href="/shipments/lead-tracks?<%= baseQs %>&trackStatus=NO_TRACK">
+      <span>无轨迹</span><strong><%= sum.noTrack %></strong>
+    </a>
+  </div>
+
+  <form class="lt-filter" method="get" action="/shipments/lead-tracks">
+    <input class="lt-input main" name="keyword" value="<%= keywordSafe %>" placeholder="搜索：公司 / 联系人 / 电话 / 微信 / VAT / 单号 / 状态">
+
+    <select class="lt-input" name="stage">
+      <option value="">全部阶段</option>
+      <% ['已导入','已联系','已报价','已成交','已关闭'].forEach(item => { %>
+        <option value="<%= item %>" <%= stageSafe === item ? 'selected' : '' %>><%= item %></option>
+      <% }) %>
+    </select>
+
+    <select class="lt-input" name="trackStatus">
+      <option value="">全部轨迹</option>
+      <option value="SIGNED" <%= trackStatusSafe === 'SIGNED' ? 'selected' : '' %>>已签收</option>
+      <option value="EXCEPTION" <%= trackStatusSafe === 'EXCEPTION' ? 'selected' : '' %>>异常</option>
+      <option value="IN_TRANSIT" <%= trackStatusSafe === 'IN_TRANSIT' ? 'selected' : '' %>>在途</option>
+      <option value="NO_TRACK" <%= trackStatusSafe === 'NO_TRACK' ? 'selected' : '' %>>无轨迹</option>
+      <option value="UNKNOWN" <%= trackStatusSafe === 'UNKNOWN' ? 'selected' : '' %>>未知</option>
+    </select>
+
+    <select class="lt-input" name="signType">
+      <option value="">全部签收方式</option>
+      <% ['前台','保安室','门口','快递架','驿站/代收点','同事/他人代收','本人','家人','其他','未识别','未签收'].forEach(item => { %>
+        <option value="<%= item %>" <%= signTypeSafe === item ? 'selected' : '' %>><%= item %></option>
+      <% }) %>
+    </select>
+
+    <select class="lt-input" name="range">
+      <option value="90" <%= String(rangeSafe).toLowerCase() !== 'all' ? 'selected' : '' %>>近90天圆通</option>
+      <option value="all" <%= String(rangeSafe).toLowerCase() === 'all' ? 'selected' : '' %>>全部圆通</option>
+    </select>
+
+    <select class="lt-input" name="pageSize">
+      <% [20,50,100,200].forEach(size => { %>
+        <option value="<%= size %>" <%= Number(pg.pageSize) === size ? 'selected' : '' %>><%= size %>/页</option>
+      <% }) %>
+    </select>
+
+    <label class="lt-check">
+      <input type="checkbox" name="show_closed" value="1" <%= showClosedSafe ? 'checked' : '' %>> 显示关闭
+    </label>
+
+    <button class="lt-btn" type="submit">查询</button>
+    <a class="lt-btn ghost" href="/shipments/lead-tracks?range=90">清空</a>
+  </form>
+
+  <div class="lt-list">
+    <% if (!rowsSafe.length) { %>
+      <div class="lt-empty">暂无匹配客人</div>
+    <% } %>
+
+    <% rowsSafe.forEach(r => { %>
+      <div class="lt-card <%= String(r.merged_track_status).toUpperCase() === 'EXCEPTION' ? 'is-exception' : '' %>">
+        <div class="lt-card-top">
+          <div class="lt-lead-main">
+            <div class="lt-line">
+              <span class="lt-id">#<%= r.id %></span>
+              <a class="lt-name" href="/portal/leads/<%= r.id %>"><%= safeText(r.company_name) %></a>
+              <span class="lt-pill"><%= safeText(r.workflow_stage) %></span>
+              <span class="lt-pill soft"><%= safeText(r.customer_level) %></span>
+              <% if (r.is_closed) { %><span class="lt-pill bad">已关闭</span><% } %>
+            </div>
+            <div class="lt-meta">
+              类目：<strong><%= safeText(r.category) %></strong>
+              · 联系人：<strong><%= safeText(r.contact_name || r.receiver_name) %></strong>
+              · 电话：<span class="mono"><%= safeText(r.phone || r.receiver_mobile) %></span>
+              · 微信：<span class="mono"><%= safeText(r.wechat) %></span>
+            </div>
+          </div>
+
+          <div class="lt-card-actions">
+            <a class="lt-btn mini" href="/portal/leads/<%= r.id %>">详情</a>
+            <a class="lt-btn mini ghost" href="/portal/leads/<%= r.id %>/plans">计划</a>
+            <a class="lt-btn mini ghost" href="/portal/leads/<%= r.id %>/followups/new">跟进</a>
+            <% if (r.latest_shipment_id) { %>
+              <button class="lt-btn mini ghost" type="button" onclick="showTrack(<%= r.latest_shipment_id %>)">轨迹</button>
+            <% } %>
+          </div>
+        </div>
+
+        <div class="lt-grid">
+          <div class="lt-block">
+            <div class="lt-block-title">开发数据</div>
+            <div class="lt-mini-grid">
+              <div><span>发信</span><strong><%= Number(r.mail_count || 0) %></strong></div>
+              <div><span>拜访</span><strong><%= Number(r.visit_count || 0) %></strong></div>
+              <div><span>跟进</span><strong><%= Number(r.followup_count || 0) %></strong></div>
+            </div>
+            <div class="lt-note"><%= safeText(r.development_advice) %></div>
+          </div>
+
+          <div class="lt-block">
+            <div class="lt-block-title">圆通最近轨迹</div>
+            <div class="lt-track-line">
+              <span class="lt-status <%= statusClass(r.merged_track_status) %>"><%= safeText(r.merged_track_status_label) %></span>
+              <span class="mono"><%= safeText(r.latest_waybill_no) %></span>
+            </div>
+            <div class="lt-kv"><span>签收方式</span><strong><%= safeText(r.signReceiveType) %></strong></div>
+            <div class="lt-kv"><span>轨迹时间</span><strong class="mono"><%= safeText(r.latest_track_time || r.latest_track_updated_at) %></strong></div>
+            <div class="lt-desc"><%= safeText(r.latest_track_desc || r.track_diagnosis?.label) %></div>
+          </div>
+        </div>
+      </div>
+    <% }) %>
+  </div>
+
+  <div class="lt-pager">
+    <div>第 <%= pg.page %> / <%= pg.totalPages %> 页，共 <%= pg.total %> 条</div>
+    <div class="lt-actions">
+      <a class="lt-btn ghost <%= pg.page <= 1 ? 'disabled' : '' %>" href="/shipments/lead-tracks?<%= baseQs %>&page=<%= Math.max(1, pg.page - 1) %>">上一页</a>
+      <a class="lt-btn ghost <%= pg.page >= pg.totalPages ? 'disabled' : '' %>" href="/shipments/lead-tracks?<%= baseQs %>&page=<%= Math.min(pg.totalPages, pg.page + 1) %>">下一页</a>
+    </div>
+  </div>
+</div>
+
+<div id="trackModal" class="lt-modal" onclick="backdropClose(event)">
+  <div class="lt-modal-card">
+    <div class="lt-modal-head">
+      <strong>圆通轨迹详情</strong>
+      <button type="button" onclick="closeTrack()">×</button>
+    </div>
+    <div class="lt-modal-body">
+      <div id="trackList" class="lt-timeline"></div>
+      <div id="trackMeta" class="lt-modal-meta"></div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .lt-page{padding:24px 28px 40px;}
+  .lt-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:16px;}
+  .lt-title{font-size:20px;font-weight:600;color:#0f172a;}
+  .lt-sub{margin-top:6px;font-size:13px;color:#64748b;}
+  .lt-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+  .lt-alert{padding:10px 12px;border-radius:14px;margin-bottom:12px;border:1px solid #e5e7eb;background:#fff;font-size:13px;}
+  .lt-alert.ok{border-color:#bbf7d0;background:#f0fdf4;color:#166534;}
+  .lt-alert.bad{border-color:#fecaca;background:#fef2f2;color:#991b1b;}
+  .lt-stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:14px;}
+  .lt-stat{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 16px;border:1px solid #e5e7eb;border-radius:16px;background:#fff;color:#0f172a;text-decoration:none;}
+  .lt-stat span{font-size:13px;color:#64748b;}
+  .lt-stat strong{font-size:24px;font-weight:600;}
+  .lt-stat.danger strong{color:#dc2626;}.lt-stat.warn strong{color:#b45309;}.lt-stat.soft strong{color:#64748b;}
+  .lt-filter{display:grid;grid-template-columns:1fr 150px 150px 170px 140px 110px auto auto auto;gap:10px;align-items:center;background:#fff;border:1px solid #e5e7eb;border-radius:18px;padding:14px;margin-bottom:14px;}
+  .lt-input{height:40px;border:1px solid #e2e8f0;border-radius:12px;padding:0 12px;background:#fff;color:#0f172a;font-size:13px;outline:none;min-width:0;}
+  .lt-input.main{min-width:260px;}
+  .lt-check{display:flex;align-items:center;gap:6px;font-size:13px;color:#475569;white-space:nowrap;}
+  .lt-btn{height:40px;padding:0 16px;border:none;border-radius:12px;background:#0f172a;color:#fff;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;}
+  .lt-btn.ghost{background:#fff;color:#0f172a;border:1px solid #dbe3ee;font-weight:500;}
+  .lt-btn.mini{height:34px;padding:0 12px;border-radius:10px;}
+  .lt-btn.disabled{pointer-events:none;opacity:.45;}
+  .lt-list{display:grid;gap:12px;}
+  .lt-empty{padding:28px;text-align:center;color:#64748b;background:#fff;border:1px solid #e5e7eb;border-radius:18px;}
+  .lt-card{background:#fff;border:1px solid #e5e7eb;border-radius:18px;overflow:hidden;}
+  .lt-card.is-exception{border-color:#fecaca;background:#fffafa;}
+  .lt-card-top{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;padding:14px 16px;border-bottom:1px solid #eef2f7;background:#fbfcfe;}
+  .lt-lead-main{min-width:0;}
+  .lt-line{display:flex;gap:10px;align-items:center;flex-wrap:wrap;min-width:0;}
+  .lt-id{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;border:1px solid #e5e7eb;border-radius:999px;padding:3px 9px;background:#fff;font-size:12px;color:#334155;}
+  .lt-name{font-weight:600;color:#0f172a;text-decoration:none;}
+  .lt-name:hover{text-decoration:underline;}
+  .lt-pill{display:inline-flex;align-items:center;min-height:24px;padding:2px 10px;border-radius:999px;background:#f1f5f9;color:#334155;font-size:12px;border:1px solid #e2e8f0;}
+  .lt-pill.soft{background:#f8fafc;}.lt-pill.bad{background:#fef2f2;color:#991b1b;border-color:#fecaca;}
+  .lt-meta{margin-top:8px;color:#64748b;font-size:13px;line-height:1.6;}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}
+  .lt-card-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .lt-grid{display:grid;grid-template-columns:330px 1fr;gap:12px;padding:14px 16px;}
+  .lt-block{border:1px solid #eef2f7;border-radius:14px;padding:12px;background:#fff;min-width:0;}
+  .lt-block-title{font-size:13px;font-weight:600;color:#0f172a;margin-bottom:10px;}
+  .lt-mini-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+  .lt-mini-grid div{border:1px solid #eef2f7;border-radius:12px;padding:9px;background:#f8fafc;}
+  .lt-mini-grid span{display:block;font-size:12px;color:#64748b;}.lt-mini-grid strong{display:block;margin-top:2px;font-size:18px;color:#0f172a;}
+  .lt-note{margin-top:10px;color:#475569;font-size:13px;line-height:1.55;}
+  .lt-track-line{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px;}
+  .lt-status{display:inline-flex;align-items:center;min-height:28px;padding:2px 12px;border-radius:999px;background:#f1f5f9;color:#334155;border:1px solid #e2e8f0;font-size:13px;font-weight:600;}
+  .lt-status.ok{background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;}.lt-status.bad{background:#fff5f5;color:#dc2626;border-color:#fecaca;}.lt-status.warn{background:#fffbeb;color:#b45309;border-color:#fde68a;}.lt-status.soft{background:#f8fafc;color:#64748b;}
+  .lt-kv{display:flex;gap:10px;align-items:baseline;margin-top:6px;font-size:13px;}.lt-kv span{color:#64748b;min-width:70px;}.lt-kv strong{color:#0f172a;font-weight:500;}
+  .lt-desc{margin-top:10px;color:#334155;font-size:13px;line-height:1.55;word-break:break-word;}
+  .lt-pager{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:16px;color:#64748b;font-size:13px;}
+  .lt-modal{position:fixed;inset:0;background:rgba(15,23,42,.28);display:none;align-items:center;justify-content:center;padding:24px;z-index:9999;}
+  .lt-modal.show{display:flex;}.lt-modal-card{width:min(900px,100%);max-height:86vh;overflow:auto;background:#fff;border-radius:20px;border:1px solid #e5e7eb;box-shadow:0 20px 60px rgba(15,23,42,.16);}
+  .lt-modal-head{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border-bottom:1px solid #eef2f7;position:sticky;top:0;background:#fff;}.lt-modal-head button{width:36px;height:36px;border-radius:12px;border:1px solid #e2e8f0;background:#fff;cursor:pointer;font-size:18px;}
+  .lt-modal-body{display:grid;grid-template-columns:1.2fr .8fr;gap:16px;padding:18px;}.lt-timeline{display:grid;gap:12px;}.lt-track-row{border-left:2px solid #e2e8f0;padding-left:12px;}.lt-track-row:first-child{border-left-color:#2563eb;}.lt-track-time{font-size:12px;color:#64748b;}.lt-track-desc{font-size:14px;color:#0f172a;line-height:1.55;margin-top:3px;}.lt-track-place{font-size:12px;color:#64748b;margin-top:3px;}.lt-modal-meta{border:1px solid #eef2f7;border-radius:14px;padding:12px;display:grid;grid-template-columns:96px 1fr;gap:8px 10px;font-size:13px;align-self:start;}.lt-modal-meta .k{color:#64748b;}.lt-modal-meta .v{color:#0f172a;word-break:break-word;}
+  @media (max-width:1200px){.lt-filter{grid-template-columns:1fr 1fr 1fr;}.lt-stats{grid-template-columns:repeat(3,minmax(0,1fr));}.lt-grid{grid-template-columns:1fr;}}
+  @media (max-width:760px){.lt-page{padding:16px;}.lt-filter,.lt-stats,.lt-modal-body{grid-template-columns:1fr;}.lt-card-top{flex-direction:column;}.lt-pager{flex-direction:column;align-items:flex-start;}}
+</style>
+
+<script>
+async function showTrack(id){
+  try{
+    const res = await fetch(`/shipments/${id}/track/detail`);
+    const json = await res.json();
+    if(!json.ok) throw new Error(json.error || '读取失败');
+
+    const shipment = json.shipment || {};
+    const summary = json.summary || {};
+    const nodes = Array.isArray(summary.nodes) ? summary.nodes.slice().reverse() : [];
+    const list = document.getElementById('trackList');
+    const meta = document.getElementById('trackMeta');
+
+    list.innerHTML = nodes.length ? nodes.map((node) => `
+      <div class="lt-track-row">
+        <div class="lt-track-time">${escapeHtml(node.time || '-')}</div>
+        <div class="lt-track-desc">${escapeHtml(node.desc || '-')}</div>
+        ${node.place ? `<div class="lt-track-place">${escapeHtml(node.place)}</div>` : ''}
+      </div>
+    `).join('') : '<div class="lt-empty">暂无轨迹节点</div>';
+
+    meta.innerHTML = `
+      <div class="k">运单号</div><div class="v mono">${escapeHtml(shipment.waybill_no || '-')}</div>
+      <div class="k">状态</div><div class="v">${escapeHtml(summary.statusText || shipment.logistics_status || '-')}</div>
+      <div class="k">签收方式</div><div class="v">${escapeHtml(summary.signReceiveType || '-')}</div>
+      <div class="k">签收文本</div><div class="v">${escapeHtml(summary.signReceiveRaw || '-')}</div>
+      <div class="k">最新时间</div><div class="v mono">${escapeHtml(summary.latestTime || '-')}</div>
+      <div class="k">最新内容</div><div class="v">${escapeHtml(summary.latestDesc || '-')}</div>
+      <div class="k">同步判断</div><div class="v">${escapeHtml(summary.diagnosis?.label || '-')}</div>
+      <div class="k">说明</div><div class="v">${escapeHtml(summary.diagnosis?.message || '-')}</div>
+    `;
+
+    document.getElementById('trackModal').classList.add('show');
+  }catch(e){
+    alert('读取轨迹失败：' + (e.message || e));
+  }
+}
+function closeTrack(){ document.getElementById('trackModal').classList.remove('show'); }
+function backdropClose(e){ if(e.target && e.target.id === 'trackModal') closeTrack(); }
+function escapeHtml(str){
+  return String(str || '')
+    .replaceAll('&','&amp;')
+    .replaceAll('<','&lt;')
+    .replaceAll('>','&gt;')
+    .replaceAll('"','&quot;')
+    .replaceAll("'",'&#39;');
+}
+</script>
