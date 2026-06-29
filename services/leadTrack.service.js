@@ -2,6 +2,7 @@ import { db } from "../db.js";
 import { parseTrackSummary } from "./shipment.track.service.js";
 
 const PAGE_SIZES = [20, 50, 100, 200];
+const LEVELS = ["A", "B", "C", "D"];
 
 function s(v) {
   return String(v == null ? "" : v).trim();
@@ -67,15 +68,21 @@ function sortRows(a, b) {
   return Number(b.id || 0) - Number(a.id || 0);
 }
 
+function sortLeadRows(a, b) {
+  return Number(b.id || 0) - Number(a.id || 0);
+}
+
 export async function listLeadTrackRows({
   keyword = "",
   stage = "",
+  level = "",
   trackStatus = "",
   signType = "",
   range = "90",
   showClosed = false,
   page = 1,
   pageSize = 50,
+  sortMode = "status",
 } = {}) {
   const pg = normalizePagination({ page, pageSize });
   const isAllRange = s(range).toLowerCase() === "all";
@@ -109,6 +116,12 @@ export async function listLeadTrackRows({
   if (stg) {
     where.push("l.workflow_stage = ?");
     params.push(stg);
+  }
+
+  const lv = s(level);
+  if (lv && LEVELS.includes(lv)) {
+    where.push("l.customer_level = ?");
+    params.push(lv);
   }
 
   const [rows] = await db.query(
@@ -195,9 +208,10 @@ export async function listLeadTrackRows({
     };
   });
 
+  const sorter = sortMode === "lead" ? sortLeadRows : sortRows;
   const filtered = enriched
     .filter((row) => matchesClientFilters(row, { trackStatus: s(trackStatus), signType: s(signType) }))
-    .sort(sortRows);
+    .sort(sorter);
 
   const total = filtered.length;
   const start = (pg.page - 1) * pg.pageSize;
