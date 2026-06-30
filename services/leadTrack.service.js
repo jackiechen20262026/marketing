@@ -72,6 +72,21 @@ function sortLeadRows(a, b) {
   return Number(b.id || 0) - Number(a.id || 0);
 }
 
+function buildTrackSummary(rows = []) {
+  return rows.reduce(
+    (acc, row) => {
+      acc.total += 1;
+      if (row.latest_waybill_no || row.waybill_no) acc.withTrack += 1;
+      if (row.merged_track_status === "SIGNED") acc.signed += 1;
+      if (row.merged_track_status === "EXCEPTION") acc.exception += 1;
+      if (row.merged_track_status === "IN_TRANSIT") acc.inTransit += 1;
+      if (row.merged_track_status === "NO_TRACK") acc.noTrack += 1;
+      return acc;
+    },
+    { total: 0, withTrack: 0, signed: 0, exception: 0, inTransit: 0, noTrack: 0 }
+  );
+}
+
 export async function listLeadTrackRows({
   keyword = "",
   stage = "",
@@ -217,19 +232,6 @@ export async function listLeadTrackRows({
   const start = (pg.page - 1) * pg.pageSize;
   const pagedRows = filtered.slice(start, start + pg.pageSize);
 
-  const summary = filtered.reduce(
-    (acc, row) => {
-      acc.total += 1;
-      if (row.latest_waybill_no) acc.withTrack += 1;
-      if (row.merged_track_status === "SIGNED") acc.signed += 1;
-      if (row.merged_track_status === "EXCEPTION") acc.exception += 1;
-      if (row.merged_track_status === "IN_TRANSIT") acc.inTransit += 1;
-      if (row.merged_track_status === "NO_TRACK") acc.noTrack += 1;
-      return acc;
-    },
-    { total: 0, withTrack: 0, signed: 0, exception: 0, inTransit: 0, noTrack: 0 }
-  );
-
   return {
     rows: pagedRows,
     pagination: {
@@ -238,10 +240,70 @@ export async function listLeadTrackRows({
       total,
       totalPages: Math.max(1, Math.ceil(total / pg.pageSize)),
     },
-    summary,
+    summary: buildTrackSummary(filtered),
+  };
+}
+
+export async function getLeadYtoDetail(leadId) {
+  const id = Number(leadId);
+  if (!Number.isFinite(id)) throw new Error("leadId 不合法");
+
+  const [rows] = await db.query(
+    `
+    SELECT
+      s.*,
+      cb.name AS batch_name
+    FROM shipments s
+    LEFT JOIN campaign_batches cb ON cb.id = s.batch_id
+    WHERE s.lead_id = ?
+      AND (
+        UPPER(COALESCE(s.carrier, '')) IN ('YTO', 'YTO_EXPRESS')
+        OR s.waybill_no IS NOT NULL
+      )
+    ORDER BY s.created_at DESC, s.id DESC
+    LIMIT 100
+    `,
+    [id]
+  );
+
+  const shipments = (rows || []).map((row) => {
+    const summary = parseSummary({ latest_track_json: row.track_json });
+    const mergedStatus = normalizeTrackStatus(
+      {
+        latest_logistics_status: row.logistics_status,
+        latest_signed_at: row.signed_at,
+        latest_shipment_id: row.id,
+      },
+      summary
+    );
+
+    return {
+      ...row,
+      merged_track_status: mergedStatus,
+      merged_track_status_label: statusLabel(mergedStatus),
+      latest_track_time: summary?.latestTime || row.track_updated_at || null,
+      latest_track_desc: summary?.latestDesc || null,
+      signed_track_time: summary?.signedTime || row.signed_at || null,
+      signReceiveType: summary?.signReceiveType || (mergedStatus === "SIGNED" ? "未识别" : "未签收"),
+      signReceiveRaw: summary?.signReceiveRaw || null,
+      track_node_count: summary?.nodes?.length || 0,
+      track_nodes: (summary?.nodes || []).map((node) => ({
+        time: node.time || null,
+        desc: node.desc || null,
+        place: node.place || null,
+      })),
+      track_diagnosis: summary?.diagnosis || null,
+      development_advice: buildAdvice(mergedStatus),
+    };
+  });
+
+  return {
+    summary: buildTrackSummary(shipments),
+    shipments,
   };
 }
 
 export default {
   listLeadTrackRows,
+  getLeadYtoDetail,
 };
