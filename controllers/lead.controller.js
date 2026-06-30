@@ -1,5 +1,6 @@
 import XLSX from "xlsx";
 import * as leadService from "../services/lead.service.js";
+import { getLeadYtoDetail } from "../services/leadTrack.service.js";
 import * as taskEngine from "../services/taskEngine.js";
 import * as todoService from "../services/todo.service.js";
 
@@ -212,7 +213,7 @@ export async function demandPage(req, res) {
       rows: data2.rows,
       pagination: data2.pagination,
       success: s(req.query.success),
-      error: s(req.query.error),
+      error: s(req.query.error) || (e?.message ? `任务刷新失败：${e.message}` : ""),
     });
   } catch (e) {
     return res.render("portal/lead_demand", {
@@ -940,6 +941,7 @@ export async function detailPage(req, res) {
 
   const followups = await leadService.getFollowups(id);
   const planCount = await leadService.countOpenPlansByLeadId(id);
+  const ytoDetail = await getLeadYtoDetail(id);
   const attachments = []; // 先兜底，避免页面报错
 
   res.render("portal/lead_detail", {
@@ -949,6 +951,7 @@ export async function detailPage(req, res) {
     lead,
     followups,
     planCount,
+    ytoDetail,
     attachments,
     success: s(req.query.success),
     error: s(req.query.error),
