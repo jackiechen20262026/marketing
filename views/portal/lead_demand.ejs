@@ -206,7 +206,7 @@ function stepPercent(step){
 
             <div class="statsGrid">
               <div class="stat">
-                <div class="stat__k muted small">发信</div>
+                <div class="stat__k muted small">加入批次</div>
                 <div class="stat__v mono"><%= Number(r.mail_count || 0) %></div>
 
                 <form method="post" action="/portal/leads/<%= r.id %>/priority-send" class="priorityForm">

@@ -163,7 +163,8 @@ function statusClass(v){
               <span class="mono"><%= safeText(r.latest_waybill_no) %></span>
             </div>
             <div class="lt-kv"><span>签收方式</span><strong><%= safeText(r.signReceiveType) %></strong></div>
-            <div class="lt-kv"><span>轨迹时间</span><strong class="mono"><%= safeText(r.latest_track_time || r.latest_track_updated_at) %></strong></div>
+            <div class="lt-kv"><span>最后查询时间（服务器历史时区）</span><strong><%= safeText(r.latest_track_updated_at) %></strong></div>
+<div class="lt-kv"><span>物流事件时间（UTC）</span><strong class="mono"><%= safeText(r.latest_track_time) %></strong></div>
             <div class="lt-desc"><%= safeText(r.latest_track_desc || r.track_diagnosis?.label) %></div>
           </div>
         </div>

@@ -1,7 +1,9 @@
+import {utcSql,wallToUtc,wallTime,TRACK_ZONE} from './mailingCalendar.js';
+import {recordMailEvent,dispatchInTransaction} from './mailing.service.js';
 import { db } from "../db.js";
 import { YtoClient } from "./yto.client.js";
 
-const yto = new YtoClient();
+const yto = { queryTrack: (...args) => new YtoClient().queryTrack(...args) };
 
 /** -----------------------------
  * helpers
@@ -21,6 +23,9 @@ function parseTimeMaybe(v) {
   if (!v) return null;
   const t = String(v).trim();
   if (!t) return null;
+  if(/^\d{4}[-/]\d{2}[-/]\d{2}[ T]\d{2}:\d{2}/.test(t)&&!/(Z|[+-]\d{2}:?\d{2})$/.test(t)){
+    try{return wallToUtc(t.replaceAll('/','-'),TRACK_ZONE);}catch{return null;}
+  }
 
   const d = new Date(t.replace(/\//g, "-"));
   if (!Number.isNaN(d.getTime())) return d;
@@ -39,10 +44,8 @@ function parseTimeMaybe(v) {
 
 function toIsoLocal(dt) {
   if (!dt) return null;
-  const pad = (x) => String(x).padStart(2, "0");
-  return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())} ${pad(
-    dt.getHours()
-  )}:${pad(dt.getMinutes())}:${pad(dt.getSeconds())}`;
+  return wallTime(dt,TRACK_ZONE);
+
 }
 
 function normalizeObjectKeys(obj) {
@@ -81,6 +84,7 @@ function extractYtoArray(resp) {
   if (!resp) return [];
 
   if (Array.isArray(resp)) return resp;
+  if (resp.map && typeof resp.map==='object') return Object.values(resp.map).filter(Array.isArray).flat();
 
   if (resp && typeof resp === "object") {
     const candidates = [
@@ -192,6 +196,7 @@ function extractYtoNodes(resp) {
 function detectSignedFromDesc(desc) {
   const t = String(desc || "").toLowerCase();
 
+  if (/(未|待|等待|尚未|没有|未能).{0,5}(签收|妥投|投递|代收)|not\s+(delivered|signed)|unsigned|退回|退件|拒收|寄件方|return/i.test(t)) return false;
   return (
     t.includes("已签收") ||
     t.includes("签收") ||
@@ -216,6 +221,7 @@ function detectSignedFromDesc(desc) {
 function detectExceptionFromDesc(desc) {
   const t = String(desc || "").toLowerCase();
   if (!t) return false;
+  if (/拒收|退回|退件|return|refused|not delivered/i.test(t))return true;
 
   const recoveryHints = [
     "异常件已处理",
@@ -505,8 +511,12 @@ function buildSyncDiagnosis(resp, summary) {
   };
 }
 
-export function parseTrackSummary(resp) {
-  const nodes = extractYtoNodes(resp);
+export function parseTrackSummary(resp, {waybillNo=null}={}) {
+  const hasMap=!!(resp&&!Array.isArray(resp)&&typeof resp.map==='object'&&resp.map!==null);
+  const waybillMismatch=!!(waybillNo&&hasMap&&!Object.hasOwn(resp.map,waybillNo));
+  if(waybillNo&&hasMap&&!waybillMismatch)resp={...resp,map:{[waybillNo]:resp.map[waybillNo]}};
+  const businessError=resp && !Array.isArray(resp) && (resp.success===false || resp.success==='false');
+  const nodes = businessError||waybillMismatch?[]:extractYtoNodes(resp).filter(n=>!waybillNo||!n.raw?.waybill_No||n.raw.waybill_No===waybillNo);
 
   const withDt = nodes
     .map((n) => ({
@@ -520,18 +530,27 @@ export function parseTrackSummary(resp) {
     });
 
   const latest = withDt.length ? withDt[withDt.length - 1] : null;
-  const latestTime = latest?.dt ? toIsoLocal(latest.dt) : latest?.time || null;
+  const latestTime = latest?.dt ? toIsoLocal(latest.dt) : null;
   const latestDesc = (latest?.desc || "").trim() || null;
 
-  const signedNode = [...withDt].reverse().find((n) => detectSignedFromDesc(n.desc)) || null;
+  // Verified production infoContent codes; a return leg is never recipient delivery.
+  const returned = withDt.some(n => n.raw?.infoContent === 'TMS_RETURN' || /退回|退件|退货|寄件方|发件人签收/.test(n.desc||''));
+  const code = latest?.raw?.infoContent;
+  const negative = /(未|待|等待|尚未).{0,5}(签收|妥投)|not\s+(delivered|signed)/i.test(latestDesc||'');
+  const signedNode = latest && !returned && !negative && (code==='SIGNED' || (!code && detectSignedFromDesc(latest.desc))) && !detectExceptionFromDesc(latest.desc) ? latest : null;
+  let returnLeg=false,recipientSignedNode=null;
+  for(const n of withDt){
+    if(n.raw?.infoContent==='TMS_RETURN'||/退回|退件|退货|拒收|寄件方/.test(n.desc||''))returnLeg=true;
+    if(!returnLeg&&!/(未|待|等待).{0,5}(签收|妥投)|not\s+(delivered|signed)/i.test(n.desc||'')&&(n.raw?.infoContent==='SIGNED'||(!n.raw?.infoContent&&detectSignedFromDesc(n.desc))))recipientSignedNode ||= n;
+  }
   const isSigned = !!signedNode;
-  const signedTime = signedNode?.dt ? toIsoLocal(signedNode.dt) : signedNode?.time || null;
+  const signedTime = signedNode?.dt ? toIsoLocal(signedNode.dt) : null;
 
   const signInfo = signedNode
     ? extractSignReceiveTypeFromDesc(signedNode.desc)
     : { signReceiveType: "未签收", signReceiveRaw: null };
 
-  const signReceiveType = signedNode ? (signInfo.signReceiveType || "未识别") : "未签收";
+  const signReceiveType = signedNode ? (signInfo.signReceiveType || "未识别") : returned ? "退件路径（非客户签收）" : recipientSignedNode ? "曾签收，当前状态变化" : withDt.length ? "未签收" : "未知";
   const signReceiveRaw = signedNode ? (signInfo.signReceiveRaw || null) : null;
 
   let statusText = "UNKNOWN";
@@ -540,12 +559,14 @@ export function parseTrackSummary(resp) {
     statusText = "UNKNOWN";
   } else if (isSigned) {
     statusText = "SIGNED";
-  } else if (detectExceptionFromDesc(latestDesc)) {
+  } else if (returned || code==='FAILED' || detectExceptionFromDesc(latestDesc)) {
     statusText = "EXCEPTION";
   } else if (latestDesc) {
     statusText = "IN_TRANSIT";
   }
 
+  const recognized=Array.isArray(resp)||!!(resp&&typeof resp==='object'&&((resp.map && typeof resp.map==='object' && !Array.isArray(resp.map) && Object.values(resp.map).every(Array.isArray))||['data','result','list','items','records','traceList','traces','routes'].some(k=>Array.isArray(resp[k]))));
+  const queryStatus=waybillMismatch?'WAYBILL_MISMATCH':businessError?'BUSINESS_ERROR':(!resp||typeof resp!=='object'||!recognized || (extractYtoArray(resp).length>0&&!nodes.length))?'PARSE_ERROR':nodes.length?'OK':'NO_NODES';
   const diagnosis = buildSyncDiagnosis(resp, {
     nodes: withDt,
     latestTime,
@@ -553,7 +574,15 @@ export function parseTrackSummary(resp) {
     isSigned,
   });
 
+  if(queryStatus!=='OK'){
+    diagnosis.code=queryStatus;
+    diagnosis.label=queryStatus==='NO_NODES'?'查询无节点，收信情况未知':queryStatus==='BUSINESS_ERROR'?'圆通业务错误':queryStatus==='WAYBILL_MISMATCH'?'返回运单不匹配':'返回结构未解析';
+    diagnosis.message=diagnosis.label;
+  }
   return {
+    queryStatus,
+    hasRecipientSignedFact:!!recipientSignedNode,
+    recipientSignedTime:recipientSignedNode?.dt?toIsoLocal(recipientSignedNode.dt):null,
     nodes: withDt,
     latestTime,
     latestDesc,
@@ -639,137 +668,34 @@ async function getShipmentById(conn, id) {
 /** -----------------------------
  * Core APIs
  * ----------------------------- */
-export async function updateTrackByShipmentId(id, { force = false, source = "unknown" } = {}) {
-  const shipmentId = Number(id);
-
-  const conn = await db.getConnection();
-  try {
-    await conn.beginTransaction();
-
-    const ship = await getShipmentById(conn, shipmentId);
-    if (!ship) throw new Error(`Shipment not found: ${shipmentId}`);
-
-    if (!ship.waybill_no) {
-      await addEvent(conn, ship.id, "TrackUpdateSkipped", "NO_WAYBILL", "No waybill_no, skip", {
-        source,
-        force,
-      });
-      await conn.commit();
-      return { ok: false, skipped: true, reason: "NO_WAYBILL", shipment: ship };
-    }
-
-    if (!force && ship.signed_at) {
-      await addEvent(conn, ship.id, "TrackUpdateSkipped", "SIGNED_SKIP", "Signed already, skip", {
-        source,
-        force,
-      });
-      await conn.commit();
-      return { ok: true, skipped: true, reason: "SIGNED_SKIP", shipment: ship };
-    }
-
-    if (!force && ship.track_updated_at) {
-      const last = new Date(ship.track_updated_at);
-      const diffMs = Date.now() - last.getTime();
-
-      if (diffMs < 2 * 60 * 60 * 1000) {
-        await addEvent(conn, ship.id, "TrackUpdateSkipped", "NOT_DUE", "Not due (<2h), skip", {
-          source,
-          force,
-          track_updated_at: ship.track_updated_at,
-        });
-        await conn.commit();
-        return { ok: true, skipped: true, reason: "NOT_DUE", shipment: ship };
-      }
-    }
-
-    await addEvent(conn, ship.id, "TrackUpdateStart", "START", "Query YTO track", {
-      source,
-      force,
-      waybill_no: ship.waybill_no,
-    });
-
-    const resp = await yto.queryTrack(ship.waybill_no);
-    const summary = parseTrackSummary(resp);
-
-    let signedAt = null;
-    if (summary.isSigned && !ship.signed_at) {
-      const signedDt = parseTimeMaybe(summary.signedTime);
-      signedAt = signedDt || new Date();
-    }
-
-    await conn.query(
-      `UPDATE shipments
-       SET track_json=?,
-           track_updated_at=?,
-           logistics_status=?,
-           signed_at=COALESCE(?, signed_at),
-           updated_at=NOW()
-       WHERE id=?`,
-      [
-        safeStringify(resp),
-        new Date(),
-        summary.statusText,
-        signedAt,
-        ship.id,
-      ]
-    );
-
-    await addEvent(conn, ship.id, "TrackUpdateSucceeded", summary.statusText, "Track updated", {
-      source,
-      force,
-      waybill_no: ship.waybill_no,
-      diagnosis: summary.diagnosis,
-      statusText: summary.statusText,
-      isSigned: summary.isSigned,
-      signedTime: summary.signedTime,
-      latestTime: summary.latestTime,
-      latestDesc: summary.latestDesc,
-      signReceiveType: summary.signReceiveType,
-      signReceiveRaw: summary.signReceiveRaw,
-      nodeCount: summary.nodes.length,
-      apiResponse: resp,
-    });
-
-    const updated = await getShipmentById(conn, ship.id);
-    await conn.commit();
-
-    return {
-      ok: true,
-      skipped: false,
-      shipment: updated,
-      summary: {
-        latestTime: summary.latestTime,
-        latestDesc: summary.latestDesc,
-        signedTime: summary.signedTime,
-        statusText: summary.statusText,
-        isSigned: summary.isSigned,
-        signReceiveType: summary.signReceiveType,
-        signReceiveRaw: summary.signReceiveRaw,
-        nodeCount: summary.nodes.length,
-        diagnosis: summary.diagnosis,
-      },
-    };
-  } catch (e) {
-    try {
-      await conn.rollback();
-    } catch {}
-
-    try {
-      const c2 = await db.getConnection();
-      try {
-        await addEvent(c2, shipmentId, "TrackUpdateFailed", "FAILED", e?.message || String(e), {
-          source,
-          force,
-        });
-      } finally {
-        c2.release();
-      }
-    } catch {}
-
-    return { ok: false, skipped: false, error: e?.message || String(e) };
-  } finally {
-    conn.release();
+export async function updateTrackByShipmentId(id,{force=false,source='unknown'}={}) {
+ const shipmentId=Number(id),conn=await db.getConnection();
+ let locked=false;
+ try {
+  const [[l]]=await conn.query('SELECT GET_LOCK(?,0) ok',['marketing-track:'+shipmentId]);locked=!!l.ok;if(!locked)return {ok:true,skipped:true,reason:'BUSY'};
+  const ship=await getShipmentById(conn,shipmentId);if(!ship?.waybill_no)return {ok:false,skipped:true,reason:'NO_WAYBILL'};
+  if(!force&&ship.track_updated_at&&Date.now()-new Date(ship.track_updated_at).getTime()<7200000)return {ok:true,skipped:true,reason:'NOT_DUE'};
+  // Network outside transaction; one named lock per shipment across all instances.
+  const resp=await yto.queryTrack(ship.waybill_no),summary=parseTrackSummary(resp,{waybillNo:ship.waybill_no});
+  await conn.beginTransaction();
+  await conn.query('SELECT id FROM leads WHERE id=? FOR UPDATE',[ship.lead_id]);
+  await conn.query('UPDATE shipments SET last_query_json=?,track_updated_at=NOW(),query_status=? WHERE id=?',[safeStringify(resp),summary.queryStatus,shipmentId]);
+  if(summary.queryStatus==='OK') {
+   const at=summary.latestTime?utcSql(wallToUtc(summary.latestTime,TRACK_ZONE)):null;
+   await conn.query('UPDATE shipments SET track_json=?,logistics_status=?,track_fact_status=?,latest_event_at=?,latest_event_desc=?,sign_receive_type=?,signed_at=COALESCE(signed_at,?),signed_observed_at=IF(?,COALESCE(signed_observed_at,UTC_TIMESTAMP()),signed_observed_at) WHERE id=?',[safeStringify(resp),summary.statusText,summary.statusText,at,summary.latestDesc,summary.signReceiveType,summary.signedTime||null,summary.isSigned,shipmentId]);
+   if(summary.hasRecipientSignedFact)await recordMailEvent(conn,ship,'signed',summary.recipientSignedTime?utcSql(wallToUtc(summary.recipientSignedTime,TRACK_ZONE)):null,'YTO recipient node');
+   const pickup=summary.nodes.find(n=>n.dt&&(n.raw?.infoContent==='GOT'||/已揽收|已收件|揽件成功|快件揽收|collected|picked up/i.test(n.desc||''))&&!/未揽收|待揽收|等待/.test(n.desc||''));
+   if(pickup)await dispatchInTransaction(conn,ship,utcSql(pickup.dt),'YTO pickup','tracking');
   }
+  await addEvent(conn,shipmentId,'TrackUpdateResult',summary.queryStatus,'Track query',{source,force,apiResponse:resp,diagnosis:summary.diagnosis});
+  await conn.commit();return {ok:summary.queryStatus==='OK',skipped:false,summary,shipment:await getShipmentById(conn,shipmentId)};
+ }catch(e){
+  await conn.rollback();
+  const status=e.queryStatus||'QUERY_ERROR';
+  await conn.query('UPDATE shipments SET query_status=?,track_updated_at=NOW() WHERE id=?',[status,shipmentId]);
+  await addEvent(conn,shipmentId,'TrackUpdateFailed',status,'Query failed',{source});
+  return {ok:false,skipped:false,error:status};
+ }finally{if(locked)await conn.query('SELECT RELEASE_LOCK(?)',['marketing-track:'+shipmentId]);conn.release();}
 }
 
 export async function updateDueTracks({ limit = 100 } = {}) {
@@ -780,7 +706,7 @@ export async function updateDueTracks({ limit = 100 } = {}) {
     SELECT id
     FROM shipments
     WHERE waybill_no IS NOT NULL
-      AND signed_at IS NULL
+      AND (signed_at IS NULL OR signed_observed_at IS NULL OR signed_observed_at > DATE_SUB(UTC_TIMESTAMP(), INTERVAL 30 DAY))
       AND (
         track_updated_at IS NULL
         OR track_updated_at < DATE_SUB(NOW(), INTERVAL 2 HOUR)
@@ -847,7 +773,7 @@ export async function listTrackSummary({ range = "90", keyword = "", signType = 
     try {
       if (r.track_json) {
         const obj = JSON.parse(r.track_json);
-        const s = parseTrackSummary(obj);
+        const s = parseTrackSummary(obj,{waybillNo:r.waybill_no});
         latestDesc = s.latestDesc;
         latestTime = s.latestTime;
         signedTime = s.signedTime;
@@ -949,7 +875,7 @@ export async function getTrackDetailByShipmentId(id) {
   try {
     raw = row.track_json ? JSON.parse(row.track_json) : null;
     if (raw) {
-      summary = parseTrackSummary(raw);
+      summary = parseTrackSummary(raw,{waybillNo:row.waybill_no});
     }
   } catch {}
 

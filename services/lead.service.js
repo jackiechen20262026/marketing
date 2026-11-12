@@ -1,3 +1,4 @@
+import {eligibilitySql} from './mailing.service.js';
 import { db } from "../db.js";
 
 const STAGES = ["已导入", "已联系", "已报价", "已成交", "已关闭"];
@@ -131,26 +132,7 @@ function latestSuccessShipmentJoinSql(leadAlias = "l", shipAlias = "ls") {
  * 4) 最近一次成功发货 logistics_status='EXCEPTION' -> 不显示（去轨迹页处理）
  */
 function buildBatchCandidateWhere({ keyword, stage, level, ids, alias = "l", shipAlias = "ls" }) {
-  let where = `
-    WHERE ${alias}.is_active = 1
-      AND COALESCE(${alias}.is_closed, 0) = 0
-      AND ${alias}.workflow_stage <> '已成交'
-      AND (
-        ${shipAlias}.id IS NULL
-        OR (
-          COALESCE(${shipAlias}.logistics_status, '') <> 'EXCEPTION'
-          AND ${shipAlias}.created_at < DATE_SUB(
-            NOW(),
-            INTERVAL CASE
-              WHEN ${alias}.wechat_group_code IS NOT NULL
-               AND TRIM(${alias}.wechat_group_code) <> ''
-              THEN 90
-              ELSE 30
-            END DAY
-          )
-        )
-      )
-  `;
+  let where = ` WHERE ${eligibilitySql()} `;
 
   const params = {};
 
@@ -1017,6 +999,8 @@ export async function markLeadPrioritySend({ leadId }) {
 
 // ✅ 优先发件：取已标记线索
 export async function listPrioritySendLeads() {
+  return []; // Priority no longer silently enrolls customers; explicit audited early-send only.
+
   const [rows] = await db.query(
     `
     SELECT

@@ -14,6 +14,8 @@ function qBool(v) {
 
 function buildFilters(req, defaults = {}) {
   return {
+    ...req.query,
+    user: req.user,
     keyword: s(req.query.keyword),
     stage: s(req.query.stage),
     level: s(req.query.level),
@@ -44,6 +46,7 @@ export async function leadPoolMergedPage(req, res) {
       STAGES,
       LEVELS,
 
+      filters,
       rows: result.rows,
       pagination: result.pagination,
       ytoSummary: result.summary,

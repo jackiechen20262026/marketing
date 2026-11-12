@@ -4,7 +4,7 @@ import shipmentTrackService from "../services/shipment.track.service.js";
 let running = false;
 
 // 每 2 小时执行一次：0 */2 * * *
-cron.schedule("0 */2 * * *", async () => {
+if(process.env.DISABLE_JOBS!=='1') cron.schedule("0 */2 * * *", async () => {
   if (running) {
     console.log("[ytoTrack.job] skipped: previous run still running");
     return;
@@ -28,4 +28,4 @@ cron.schedule("0 */2 * * *", async () => {
   } finally {
     running = false;
   }
-});
+}, {timezone:'Europe/Berlin',noOverlap:true});

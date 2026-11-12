@@ -67,7 +67,7 @@ export default function leadRoutes() {
 
   router.post("/leads/:id(\\d+)/close", leadController.closeLead);
   router.post("/leads/:id(\\d+)/reopen", leadController.reopenLead);
-  router.post("/leads/:id(\\d+)/priority-send", leadController.prioritySend);
+  router.post("/leads/:id(\\d+)/priority-send", (req,res)=>res.redirect('/portal/leads/'+req.params.id+'/mailing'));
 
   router.get("/todos", leadController.todosPage);
   router.post("/todos/:id(\\d+)/complete", todoEvidenceUpload.single("evidence"), leadController.todoComplete);

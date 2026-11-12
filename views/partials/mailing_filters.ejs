@@ -1,0 +1,13 @@
+<form method="get" action="/portal/mailing" style="display:flex;flex-wrap:wrap;gap:8px">
+<input name="keyword" placeholder="客户关键词" value="<%= filters.keyword||'' %>">
+<select name="metric"><% for(const [k,v] of Object.entries({batch:'加入批次',ordered:'下单成功',dispatched:'实际寄出',signed:'物流签收',confirmed:'客户确认'})){ %><option value="<%= k %>" <%= filters.metric===k?'selected':'' %>><%= v %></option><% } %></select>
+<select name="countBucket"><option value="">自定义次数</option><% for(const n of ['0','1','2','3+']){ %><option value="<%= n %>" <%= filters.countBucket===n?'selected':'' %>><%= n==='3+'?'3次及以上':n+'次' %></option><% } %></select>
+<input type="number" min="0" name="minCount" placeholder="最少次数（0/1/2/3）" value="<%= filters.minCount||'' %>"><input type="number" min="0" name="maxCount" placeholder="最多次数；3次以上留空" value="<%= filters.maxCount||'' %>">
+<select name="months"><option value="">全部历史</option><% for(const n of [1,3,6,12]){ %><option value="<%= n %>" <%= String(filters.months)===String(n)?'selected':'' %>>近<%= n %>个月</option><% } %></select>
+<label>从<input type="date" name="dateFrom" value="<%= filters.dateFrom||'' %>"></label><label>至<input type="date" name="dateTo" value="<%= filters.dateTo||'' %>"></label>
+<label><input type="checkbox" name="important" value="1" <%= filters.important==='1'?'checked':'' %>>重要客人</label>
+<select name="stage"><option value="">全部阶段</option><% for(const s of ['已导入','已联系','已报价','已成交','已关闭']){ %><option <%= filters.stage===s?'selected':'' %>><%= s %></option><% } %></select>
+<select name="trackStatus"><option value="">全部物流状态</option><% for(const s of ['SIGNED','EXCEPTION','IN_TRANSIT','UNKNOWN','NO_TRACK']){ %><option <%= filters.trackStatus===s?'selected':'' %>><%= s %></option><% } %></select>
+<select name="due"><option value="">全部周期</option><option value="due" <%= filters.due==='due'?'selected':'' %>>到期</option><option value="paused" <%= filters.due==='paused'?'selected':'' %>>暂停</option><option value="legacy" <%= filters.due==='legacy'?'selected':'' %>>旧规则</option></select>
+<select name="includeResends"><option value="1">计入补寄</option><option value="0" <%= filters.includeResends==='0'?'selected':'' %>>不计补寄</option></select>
+<select name="sort"><option value="important">重要优先</option><% for(const [k,v] of Object.entries({count_desc:'次数降序',count_asc:'次数升序',date:'事件时间',due:'下次日期'})){ %><option value="<%= k %>" <%= filters.sort===k?'selected':'' %>><%= v %></option><% } %></select><button>筛选</button></form>

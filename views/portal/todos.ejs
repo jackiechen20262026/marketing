@@ -110,7 +110,8 @@ function fmtYMDHM(dRaw){
             <a class="link" href="/portal/leads/<%= r.lead_id %>">详情</a>
             <a class="link" href="/portal/leads/<%= r.lead_id %>/plans">计划</a>
 
-            <form class="inline" method="post" action="/portal/todos/<%= r.id %>/complete" enctype="multipart/form-data">
+            <% if(r.task_type.startsWith('mailing_')){ %><a href="/portal/leads/<%= r.lead_id %>/mailing">处理发信计划/物流异常</a><% } %>
+<form class="inline" <%= r.task_type.startsWith('mailing_')?'hidden':'' %> method="post" action="/portal/todos/<%= r.id %>/complete" enctype="multipart/form-data">
               <input type="hidden" name="back" value="/portal/todos?<%= qsBase %>&page=<%= pg.page %>">
               <input type="hidden" name="task_type" value="<%= r.task_type %>">
               <input class="input input--mini" name="remark" placeholder="备注(可选)" />

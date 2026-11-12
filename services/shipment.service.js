@@ -1,3 +1,5 @@
+import {assertEligible,recordMailEvent} from './mailing.service.js';
+import {utcSql} from './mailingCalendar.js';
 // services/shipment.service.js
 import { db } from "../db.js";
 import { YtoClient } from "./yto.client.js";
@@ -250,7 +252,7 @@ export async function precheckBatchToYto({ batchId }) {
   const conn = await db.getConnection();
   try {
     const [items] = await conn.query(
-      `SELECT lead_id FROM campaign_batch_items WHERE batch_id=? ORDER BY id ASC`,
+      `SELECT lead_id FROM campaign_batch_items WHERE batch_id=? AND status<>'removed' ORDER BY id ASC`,
       [bid]
     );
 
@@ -318,7 +320,7 @@ async function pushOneShipment(conn, { batchId, leadId, retryFailedOnly, force }
     return { ok: false, skipped: true, blocked: false, shipment: ship, error: msg };
   }
 
-  const logisticsNo = ship.yto_request_id ?? buildLogisticsNo({ batchId, leadId });
+  const logisticsNo = ship.yto_request_id ?? `B${batchId}_${leadId}`;
   await safeUpdateShipment(conn, ship.id, { yto_request_id: logisticsNo, updated_at: new Date() });
 
   const param = {
@@ -348,8 +350,11 @@ async function pushOneShipment(conn, { batchId, leadId, retryFailedOnly, force }
 
   try {
     const resp = await yto.createOrder(param);
+    if(!resp.mailNo)throw Error('YTO response missing waybill');
+    await conn.beginTransaction();
 
     await safeUpdateShipment(conn, ship.id, {
+      order_succeeded_at: utcSql(new Date()),
       push_status: mapPushStatus("Pushed"),
       waybill_no: resp.mailNo ?? null,
       error_message: null,
@@ -362,9 +367,12 @@ async function pushOneShipment(conn, { batchId, leadId, retryFailedOnly, force }
       mailNo: resp.mailNo,
     });
 
+    await recordMailEvent(conn,{...ship,waybill_no:resp.mailNo},'ordered',utcSql(new Date()),'YTO create success');
     const [[updated]] = await conn.query(`SELECT * FROM shipments WHERE id=?`, [ship.id]);
+    await conn.commit();
     return { ok: true, skipped: false, shipment: updated || ship };
   } catch (e) {
+    await conn.rollback();
     let code = null;
     const msg = e?.message ? String(e.message) : "YTO error";
 
@@ -400,8 +408,12 @@ export async function pushBatchToYto(batchId, options = {}) {
 
   const conn = await db.getConnection();
   try {
+    const [[batchLock]]=await conn.query('SELECT GET_LOCK(?,0) ok',['marketing-batch:'+bid]);
+    if(!batchLock.ok)throw Error('BATCH_BUSY');
+    const [[batchState]]=await conn.query('SELECT status FROM campaign_batches WHERE id=?',[bid]);
+    if(!batchState||batchState.status==='closed')throw Error('批次已取消');
     const sql =
-      `SELECT lead_id FROM campaign_batch_items WHERE batch_id=? ORDER BY id ASC ` +
+      `SELECT lead_id FROM campaign_batch_items WHERE batch_id=? AND status<>'removed' ORDER BY id ASC ` +
       (limit ? "LIMIT ?" : "");
     const [items] = await conn.query(sql, limit ? [bid, limit] : [bid]);
 
@@ -416,9 +428,13 @@ export async function pushBatchToYto(batchId, options = {}) {
 
       const oneConn = await db.getConnection();
       try {
-        await oneConn.beginTransaction();
+        const [[lock]]=await oneConn.query('SELECT GET_LOCK(?,0) ok',['marketing-order:'+bid+':'+leadId]);
+        if(!lock.ok)throw Error('ORDER_BUSY');
+        const [[existing]]=await oneConn.query('SELECT waybill_no FROM shipments WHERE batch_id=? AND lead_id=?',[bid,leadId]);
+        const [[early]]=await oneConn.query("SELECT COUNT(*) n FROM marketing_audit WHERE lead_id=? AND action='early_send' AND JSON_EXTRACT(after_json,'$.batchId')=?",[leadId,bid]);
+        if(!existing?.waybill_no)await assertEligible(oneConn,leadId,{ignoreBatch:bid,early:Number(early.n)>0});
         const r = await pushOneShipment(oneConn, { batchId: bid, leadId, retryFailedOnly, force });
-        await oneConn.commit();
+
 
         results.push({ leadId, ...r });
 
@@ -431,12 +447,14 @@ export async function pushBatchToYto(batchId, options = {}) {
         results.push({ leadId, ok: false, skipped: false, error: e?.message || String(e) });
         failed++;
       } finally {
+        await oneConn.query('SELECT RELEASE_LOCK(?)',['marketing-order:'+bid+':'+leadId]);
         oneConn.release();
       }
     }
 
     return { batchId: bid, total: items.length, success, failed, skipped, blocked, results };
   } finally {
+    await conn.query('SELECT RELEASE_LOCK(?)',['marketing-batch:'+bid]);
     conn.release();
   }
 }

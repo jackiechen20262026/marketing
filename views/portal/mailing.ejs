@@ -1,0 +1,11 @@
+<div class="page"><h1>发信计划与统计</h1>
+<p>新周期：Europe/Berlin 自然月，实际寄出后推进。未启用新周期的客户继续使用旧 30/90 天规则。重要星标只影响排序。</p>
+<%- include('../partials/mailing_filters',{filters}) %>
+<p>匹配客户 <%= pagination.total %>；<a href="/portal/mailing/export?<%= new URLSearchParams(Object.entries(filters).filter(([k])=>k!=='user')).toString() %>">导出相同筛选</a></p>
+<div style="overflow:auto"><table><thead><tr><th>客户</th><th>加入批次</th><th>下单成功</th><th>实际寄出</th><th>物流签收</th><th>客户确认</th><th>周期</th></tr></thead><tbody>
+<% for(const row of rows){ %><tr><td><a href="/portal/leads/<%= row.id %>/mailing"><%= row.important_flag?'★ ':'' %><%= row.company_name %></a></td><% for(const k of ['mail_count','ordered_count','dispatched_count','signed_count','confirmed_count']){ %><td><%= row[k] %></td><% } %><td><%= row.plan_enabled?(row.paused?'暂停':row.next_at+' UTC'):'旧30/90天' %></td></tr><% } %>
+</tbody></table></div>
+<p>第 <%= pagination.page %> / <%= pagination.totalPages %> 页 <% for(const p of [pagination.page-1,pagination.page+1]){if(p>0&&p<=pagination.totalPages){ %><a href="?<%= new URLSearchParams({...Object.fromEntries(Object.entries(filters).filter(([k])=>k!=='user')),page:p}).toString() %>"><%= p %></a> <% }} %></p>
+<h2>发信待办 / 待分配（最多展示200项）</h2><p>寄出凭证完成周期；延期、暂停、恢复在客户计划页操作。异常解除必须填写条件。</p>
+<% for(const task of tasks){ %><p><a href="/portal/leads/<%= task.lead_id %>/mailing"><%= task.company_name %></a> · <%= task.task_type==='mailing_due'?'周期发信':'物流异常' %> · <%= task.owner_user_id||'待分配（管理员可见）' %> · <%= task.due_at %> UTC</p><% } %>
+<p>实际寄出、签收等次数按独立业务事件统计；缺少历史证据的寄出情况为未知，不计为零封已寄出事实。无日期事件仅进入全部历史，不进入日期区间。</p></div>

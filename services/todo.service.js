@@ -19,6 +19,8 @@ function buildPagination({ page, pageSize, total }) {
 }
 
 export const TASK_NAME_MAP = {
+  mailing_due: "周期发信（凭实际寄出完成）",
+  mailing_exception: "物流异常处理",
   conv_group_due: "建微信群",
   conv_sample_due: "寄样品+填单号",
   conv_deal_due: "推进成交",
@@ -35,7 +37,7 @@ export async function listTodos({ ownerUserId, scope, keyword, page, pageSize })
   const offset = (p - 1) * ps;
 
   // scope: overdue | today | week | all
-  let where = " WHERE t.owner_user_id=:uid AND t.status IN ('pending','planned') ";
+  let where = " WHERE (t.owner_user_id=:uid OR (t.owner_user_id IS NULL AND EXISTS(SELECT 1 FROM users u WHERE u.id=:uid AND u.role='Admin' AND u.status=1))) AND t.status IN ('pending','planned') ";
   const params = { uid };
 
   if (keyword) {
@@ -115,7 +117,7 @@ export async function completeTodo({ todoId, doneFollowupId, evidenceFile, remar
         evidence_file=:evidence_file,
         remark=:remark,
         updated_at=CURRENT_TIMESTAMP
-    WHERE id=:id AND status IN ('pending','planned')
+    WHERE id=:id AND task_type NOT IN ('mailing_due','mailing_exception') AND status IN ('pending','planned')
     `,
     {
       id: tid,

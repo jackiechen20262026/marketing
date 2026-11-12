@@ -90,7 +90,7 @@ export async function createPage(req, res) {
     pagination: data.pagination,
 
     ruleHint:
-      "默认排除：已成交客户；无群客户近30天已成功发货客户；有群客户近90天已成功发货客户；最近一次物流状态为 EXCEPTION 的客户不在批次里表现，请到圆通轨迹页处理。优先发件客户会自动进入本页。",
+      "新计划按 Europe/Berlin 下一次日期；旧客户保留30/90天规则（历史按单号及创建时间）。重要标记仅排序；暂停、异常、重复占用均排除。",
 
     error: s(req.query.error),
     success: s(req.query.success),

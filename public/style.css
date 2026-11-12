@@ -697,3 +697,7 @@ tr:hover{ background:#fafafa; }
     justify-content:flex-start;
   }
 }
+/* Marketing upgrade: usable navigation and forms on phones. */
+.navbar{flex-wrap:wrap;gap:12px;height:auto;min-height:64px}.nav-left{flex-shrink:0}.nav-center{flex-wrap:wrap;gap:12px}.nav-center a{white-space:nowrap}.nav-right{max-width:100%;overflow-wrap:anywhere}
+.page button{border:1px solid #ccd3df;border-radius:8px;padding:9px 14px;background:white;cursor:pointer}.page button:hover{background:#edf3ff}.page button:disabled{opacity:.5}.page input,.page select,.page textarea{max-width:100%;box-sizing:border-box}.page table{border-collapse:collapse;width:100%}.page th,.page td{padding:10px;border-bottom:1px solid #e5e7eb;text-align:left}.page .card{padding:16px;margin:12px 0}
+@media(max-width:760px){.navbar{position:relative;padding:12px;display:flex;align-items:flex-start}.nav-left{width:100%;font-size:16px}.nav-center{width:100%;display:flex;flex-wrap:nowrap;overflow-x:auto;padding-bottom:8px;min-width:0}.nav-center a{flex:0 0 auto}.nav-right{width:100%}.page{padding:12px;max-width:100%;box-sizing:border-box}.page form{max-width:100%}#ai-app>aside,#ai-app>main{flex:1 1 100%!important;min-width:0!important}}

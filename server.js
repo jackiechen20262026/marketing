@@ -1,3 +1,5 @@
+import {csrfToken} from './middlewares/marketingSecurity.js';
+import {execFileSync} from 'node:child_process';
 import "dotenv/config";
 import express from "express";
 import path from "path";
@@ -10,6 +12,7 @@ import portalRoutes from "./routes/portal.js";
 import shipmentTrackRoutes from "./routes/shipmentTrack.routes.js";
 
 import "./jobs/ytoTrack.job.js";
+import "./jobs/mailing.job.js";
 
 import { requireAuth } from "./middlewares/auth.js";
 import { leadStatsMiddleware } from "./middlewares/leadStats.js";
@@ -42,6 +45,10 @@ app.use(
     },
   })
 );
+
+app.use(csrfToken);
+const runtimeSha=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8',windowsHide:true}).trim();
+app.get('/health/marketing-version',(req,res)=>res.json({sha:runtimeSha,service:'marketing',jobs:process.env.DISABLE_JOBS!=='1'}));
 
 // ---- views ----
 app.set("view engine", "ejs");

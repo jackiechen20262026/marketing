@@ -1,0 +1,6 @@
+<div class="page"><h1>AI 助手</h1><p>只读分析与草稿。不会下单或发送消息；物流签收不等于客户购买意向。</p>
+<div id="ai-app" data-csrf="<%= marketingCsrf %>" style="display:flex;flex-wrap:wrap;gap:16px">
+<aside style="flex:1;min-width:200px"><button id="ai-new">新对话</button><div id="ai-sessions"></div></aside>
+<main style="flex:3;min-width:260px"><label>客户编号（逗号分隔，最多50个）<input id="ai-leads" value="<%= leadIds %>"></label><label>从<input id="ai-from" type="date"></label><label>至<input id="ai-to" type="date"></label><small>时间范围 Europe/Berlin</small>
+<div id="ai-messages" aria-live="polite" style="white-space:pre-wrap;overflow-wrap:anywhere"></div><div id="ai-status" role="status"></div><div id="ai-evidence"></div>
+<form id="ai-form"><textarea id="ai-input" maxlength="4000" required style="width:100%;min-height:100px" placeholder="分析该客户的发信、跟进及证据缺口"></textarea><button id="ai-send">发送</button><button type="button" id="ai-cancel">取消</button><button type="button" id="ai-retry">重试</button></form></main></div></div><script src="/ai-assistant.js" defer></script>

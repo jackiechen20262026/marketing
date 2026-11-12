@@ -41,6 +41,8 @@ function trackClass(v){
     </div>
 
     <div class="page__actions">
+<a class="btn" href="/portal/mailing">发信次数/重要/到期筛选</a>
+<button type="button" onclick="location.href='/portal/ai-assistant?leadIds='+Array.from(document.querySelectorAll('input[type=checkbox]:checked')).map(x=>x.value).filter(x=>/^\d+$/.test(x)).join(',')">分析所选客户</button>
       <a class="btn btn--primary" href="/portal/leads/new"><%= t("手动添加") %></a>
       <a class="btn btn--ghost" href="/portal/leads/import"><%= t("批量导入") %></a>
 
@@ -166,7 +168,7 @@ function trackClass(v){
         const updated = fmtDate(r.updated_at || r.created_at);
         const trackStatus = r.merged_track_status || 'NO_TRACK';
         const trackLabel = r.merged_track_status_label || '无轨迹';
-        const trackTime = r.latest_track_time || r.latest_track_updated_at || '';
+        const trackTime = r.latest_track_time || '';
         const trackKeyword = r.latest_waybill_no || r.company_name || '';
       %>
         <div class="leadCard">
@@ -200,7 +202,8 @@ function trackClass(v){
               <% } %>
               <a class="opGhost" href="/portal/leads/<%= r.id %>/plans"><%= t("计划") %></a>
               <a class="opGhost" href="/portal/leads/<%= r.id %>/visit"><%= t("拜访") %></a>
-              <form method="post" action="/portal/leads/<%= r.id %>/priority-send" class="inline">
+              <form method="post" action="/portal/leads/<%= r.id %>/important" class="inline"><input type="hidden" name="_csrf" value="<%= marketingCsrf %>"><input type="hidden" name="flag" value="<%= r.important_flag?'0':'1' %>"><button><%= r.important_flag?'取消★':'设为重要★' %></button></form><a href="/portal/leads/<%= r.id %>/mailing">周期 / 提前发件</a><a href="/portal/ai-assistant?leadIds=<%= r.id %>">分析此客户</a>
+<form method="post" action="/portal/leads/<%= r.id %>/priority-send" class="inline" hidden>
                 <input type="hidden" name="back" value="<%= currentPath %>">
                 <button type="submit" class="opGhost opGhostBtn">优先发件</button>
               </form>
@@ -240,7 +243,7 @@ function trackClass(v){
 
               <div class="statsGrid">
                 <div class="stat">
-                  <div class="stat__k muted small"><%= t("发信") %></div>
+                  <div class="stat__k muted small"><%= t("加入批次") %></div>
                   <div class="stat__v mono"><%= Number(r.mail_count || 0) %></div>
                 </div>
                 <div class="stat">
@@ -271,8 +274,9 @@ function trackClass(v){
                   <div class="kv__v"><%= safeText(r.signReceiveType) %></div>
                 </div>
                 <div class="kv__row">
-                  <div class="kv__k muted small"><%= t("轨迹时间") %></div>
+                  <div class="kv__k muted small"><%= t("物流事件时间（UTC）") %></div>
                   <div class="kv__v mono"><%= safeText(trackTime) %></div>
+<div class="muted small">最后查询（历史本地时间）：<%= safeText(r.latest_track_updated_at) %></div>
                 </div>
                 <div class="kv__row kv__row--top">
                   <div class="kv__k muted small"><%= t("最新轨迹") %></div>

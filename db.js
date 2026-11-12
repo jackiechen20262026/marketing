@@ -19,6 +19,7 @@ export const pool = mysql.createPool({
 
   // allow :named placeholders in queries (as you use in lead.service.js)
   namedPlaceholders: true,
+  dateStrings: true,
 
   waitForConnections: true,
   connectionLimit: 10,

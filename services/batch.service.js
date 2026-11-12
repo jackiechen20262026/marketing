@@ -1,3 +1,5 @@
+import {assertEligible} from './mailing.service.js';
+import {currentUser,audit} from './marketingAccess.js';
 import { db } from "../db.js";
 
 /** 批次列表（附带 leadCount） */
@@ -24,7 +26,7 @@ export async function listBatches({ limit } = {}) {
 }
 
 /** 创建批次 + 插入 items */
-export async function createBatch({ user, batchName, remark, leadIds }) {
+export async function createBatch({ user, batchName, remark, leadIds, early=false, reason=null, originalShipmentId=null }) {
   const leadIdsNum = (leadIds || [])
     .map((x) => Number(x))
     .filter((n) => Number.isFinite(n));
@@ -36,6 +38,7 @@ export async function createBatch({ user, batchName, remark, leadIds }) {
 
   const conn = await db.getConnection();
   try {
+    await conn.query('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
     await conn.beginTransaction();
 
     const [ret] = await conn.query(
@@ -46,15 +49,30 @@ export async function createBatch({ user, batchName, remark, leadIds }) {
 
     const batchId = ret.insertId;
 
-    const uniq = Array.from(new Set(leadIdsNum));
+    const uniq = Array.from(new Set(leadIdsNum)).sort((a,b)=>a-b);
+    const actor=await currentUser(user?.id,conn);
+    if(early && (actor.role!=='Admin'||!String(reason||'').trim()))throw Error('提前发件需要管理员权限和原因');
+    if(originalShipmentId&&(!early||uniq.length!==1))throw Error('补寄需要独立草稿和人工授权');
     for (const leadId of uniq) {
+      await conn.query('SELECT id FROM leads WHERE id=? FOR UPDATE',[leadId]);
+      await assertEligible(conn,leadId,{early});
+      const [[plan]]=await conn.query('SELECT version FROM mailing_plans WHERE lead_id=? AND enabled=1',[leadId]);
+      await conn.query('INSERT INTO mailing_reservations(lead_id,batch_id,plan_version) VALUES(?,?,?)',[leadId,batchId,plan?.version||null]);
       await conn.query(
         `INSERT INTO campaign_batch_items(batch_id, lead_id, status, error_msg, created_at)
          VALUES(?, ?, 'pending', NULL, NOW())`,
         [batchId, leadId]
       );
+      if(originalShipmentId){
+        const [[original]]=await conn.query('SELECT id,lead_id,waybill_no FROM shipments WHERE id=?',[originalShipmentId]);
+        if(!original||!original.waybill_no||String(original.lead_id)!==String(leadId))throw Error('原运单不属于此客户');
+        await conn.query("INSERT INTO shipments(batch_id,lead_id,original_shipment_id,push_status) VALUES(?,?,?,'pending')",[batchId,leadId,originalShipmentId]);
+        await audit(conn,{leadId,userId:user.id,action:'resend_draft',reason,after:{originalShipmentId,batchId}});
+      }
     }
 
+    await conn.query('UPDATE campaign_batch_items i JOIN mailing_reservations r ON r.batch_id=i.batch_id AND r.lead_id=i.lead_id SET i.plan_version=r.plan_version WHERE i.batch_id=?',[batchId]);
+    if(early)for(const leadId of uniq)await audit(conn,{leadId,userId:user.id,action:'early_send',reason,after:{batchId}});
     await conn.commit();
     return { id: batchId };
   } catch (e) {
@@ -117,10 +135,13 @@ export async function deleteBatch({ id }) {
 
   const conn = await db.getConnection();
   try {
+    const [[lock]]=await conn.query('SELECT GET_LOCK(?,0) ok',['marketing-batch:'+batchId]);
+    if(!lock.ok)throw Error('BATCH_BUSY');
+    await conn.query('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
     await conn.beginTransaction();
 
     const [rows] = await conn.query(
-      `SELECT id, status FROM campaign_batches WHERE id=? LIMIT 1`,
+      `SELECT id, status FROM campaign_batches WHERE id=? LIMIT 1 FOR UPDATE`,
       [batchId]
     );
 
@@ -130,8 +151,11 @@ export async function deleteBatch({ id }) {
       throw new Error("仅未推送批次允许删除");
     }
 
-    await conn.query(`DELETE FROM campaign_batch_items WHERE batch_id=?`, [batchId]);
-    await conn.query(`DELETE FROM campaign_batches WHERE id=?`, [batchId]);
+    const [[pushed]]=await conn.query('SELECT COUNT(*) n FROM shipments WHERE (waybill_no IS NOT NULL OR yto_request_id IS NOT NULL) AND batch_id=?',[batchId]);
+    if(Number(pushed.n))throw Error('已有运单的批次不能删除');
+    await conn.query('DELETE FROM mailing_reservations WHERE batch_id=?',[batchId]);
+    await conn.query("UPDATE campaign_batch_items SET status='removed' WHERE batch_id=?",[batchId]);
+    await conn.query("UPDATE campaign_batches SET status='closed' WHERE id=?",[batchId]);
 
     await conn.commit();
     return { ok: true, id: batchId };
@@ -139,6 +163,7 @@ export async function deleteBatch({ id }) {
     await conn.rollback();
     throw e;
   } finally {
+    await conn.query('SELECT RELEASE_LOCK(?)',['marketing-batch:'+batchId]);
     conn.release();
   }
 }
@@ -155,6 +180,9 @@ export async function removeBatchItems({ batchId, leadIds }) {
 
   const conn = await db.getConnection();
   try {
+    const [[lock]]=await conn.query('SELECT GET_LOCK(?,0) ok',['marketing-batch:'+bid]);
+    if(!lock.ok)throw Error('BATCH_BUSY');
+    await conn.query('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
     await conn.beginTransaction();
 
     const [rows] = await conn.query(
@@ -169,8 +197,11 @@ export async function removeBatchItems({ batchId, leadIds }) {
     }
 
     const placeholders = ids.map(() => "?").join(",");
+    const [[pushed]]=await conn.query('SELECT COUNT(*) n FROM shipments WHERE (waybill_no IS NOT NULL OR yto_request_id IS NOT NULL) AND batch_id=? AND lead_id IN ('+placeholders+')',[bid,...ids]);
+    if(Number(pushed.n))throw Error('已有运单不能移出');
+    await conn.query('DELETE FROM mailing_reservations WHERE batch_id=? AND lead_id IN ('+placeholders+')',[bid,...ids]);
     const [ret] = await conn.query(
-      `DELETE FROM campaign_batch_items
+      `UPDATE campaign_batch_items SET status='removed'
        WHERE batch_id=?
          AND lead_id IN (${placeholders})`,
       [bid, ...ids]
@@ -189,6 +220,7 @@ export async function removeBatchItems({ batchId, leadIds }) {
     await conn.rollback();
     throw e;
   } finally {
+    await conn.query('SELECT RELEASE_LOCK(?)',['marketing-batch:'+bid]);
     conn.release();
   }
 }
@@ -200,9 +232,9 @@ export async function markBatchCompleted({ id }) {
 
   await db.query(
     `UPDATE campaign_batches
-     SET status='completed', updated_at=NOW()
-     WHERE id=?`,
-    [batchId]
+     SET status=CASE WHEN EXISTS(SELECT 1 FROM shipments s WHERE s.batch_id=? AND NULLIF(TRIM(s.waybill_no),'') IS NOT NULL) THEN 'done' ELSE 'draft' END, updated_at=NOW()
+     WHERE id=? AND status<>'closed'`,
+    [batchId,batchId]
   );
 
   return { ok: true, id: batchId };

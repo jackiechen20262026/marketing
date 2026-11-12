@@ -92,7 +92,7 @@ export class YtoClient {
     const url = `${this.baseUrl}${this.track.path}`;
     const body = this.buildEnvelope({ NUMBER: waybillNo }, this.track);
     const resp = await postJson(url, body);
-    if (!resp.ok) throw new Error(`YTO track HTTP ${resp.status}: ${JSON.stringify(resp.data)}`);
+    if (!resp.ok) throw Object.assign(new Error('YTO track HTTP '+resp.status),{queryStatus:'HTTP_ERROR'});
     return resp.data;
   }
 }

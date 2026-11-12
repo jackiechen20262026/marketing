@@ -1,3 +1,5 @@
+import mailingRoutes from './mailing.routes.js';
+import aiRoutes from './ai.routes.js';
 // routes/portal.js
 import express from "express";
 import leadRoutes from "./lead.routes.js";
@@ -11,6 +13,9 @@ export default function portalRoutes() {
 
   // ✅ 所有 /portal 下必须登录
   r.use(requireAuth);
+
+  r.use(mailingRoutes());
+  r.use(aiRoutes());
 
   // 线索模块
   r.use(leadRoutes());
