@@ -71,7 +71,7 @@ function fmtYMDHM(dRaw){
       <% } %>
 
       <% rowsSafe.forEach(r => { 
-          const due = r.due_at ? new Date(r.due_at) : null;
+          const due = r.due_at ? new Date(r.due_instant || r.due_at) : null;
           const now = new Date();
           const overdueDays = due ? Math.floor((now.getTime() - due.getTime())/(24*3600*1000)) : null;
           const rowCls = (overdueDays!=null && overdueDays>0) ? 'tr--risk' : (overdueDays===0 ? 'tr--today' : '');
@@ -94,7 +94,7 @@ function fmtYMDHM(dRaw){
           </div>
 
           <div class="td mono">
-            <div><%= fmtYMDHM(r.due_at) %></div>
+            <div><%= r.due_label || fmtYMDHM(r.due_at) %></div>
             <div class="small <%= overdueDays>0?'due--over':(overdueDays===0?'due--today':'due--ok') %>">
               <% if (overdueDays==null) { %>—<% } 
                  else if (overdueDays>0) { %>超期 <%= overdueDays %> 天<% }
@@ -119,7 +119,7 @@ function fmtYMDHM(dRaw){
               <button class="btn btn--ghost btn--mini" type="submit">完成</button>
             </form>
 
-            <form class="inline" method="post" action="/portal/todos/<%= r.id %>/skip">
+            <form class="inline" <%= r.task_type.startsWith('mailing_')?'hidden':'' %> method="post" action="/portal/todos/<%= r.id %>/skip">
               <input type="hidden" name="back" value="/portal/todos?<%= qsBase %>&page=<%= pg.page %>">
               <input class="input input--mini" name="remark" placeholder="跳过原因" />
               <button class="btn btn--ghost btn--mini" type="submit">跳过</button>

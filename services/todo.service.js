@@ -1,5 +1,6 @@
 // services/todo.service.js
 import { db } from "../db.js";
+import { businessDayWindow, fromUtcSql, wallTime } from "./mailingCalendar.js";
 
 function toFiniteNumber(v) {
   const n = Number(v);
@@ -39,6 +40,8 @@ export async function listTodos({ ownerUserId, scope, keyword, page, pageSize })
   // scope: overdue | today | week | all
   let where = " WHERE (t.owner_user_id=:uid OR (t.owner_user_id IS NULL AND EXISTS(SELECT 1 FROM users u WHERE u.id=:uid AND u.role='Admin' AND u.status=1))) AND t.status IN ('pending','planned') ";
   const params = { uid };
+  const isMailing = "t.task_type IN ('mailing_due','mailing_exception')";
+  const isOverdue = `(t.due_at < CASE WHEN ${isMailing} THEN UTC_TIMESTAMP() ELSE NOW() END)`;
 
   if (keyword) {
     where += " AND (l.company_name LIKE :kw OR l.wechat LIKE :kw OR l.phone LIKE :kw OR l.contact_name LIKE :kw) ";
@@ -46,11 +49,15 @@ export async function listTodos({ ownerUserId, scope, keyword, page, pageSize })
   }
 
   if (scope === "overdue") {
-    where += " AND t.due_at < NOW() ";
+    where += ` AND ${isOverdue} `;
   } else if (scope === "today") {
-    where += " AND DATE(t.due_at) = CURDATE() ";
+    const window = businessDayWindow();
+    Object.assign(params, { dayStart: window.start, dayEnd: window.end });
+    where += ` AND ((${isMailing} AND t.due_at >= :dayStart AND t.due_at < :dayEnd) OR (NOT (${isMailing}) AND DATE(t.due_at) = CURDATE())) `;
   } else if (scope === "week") {
-    where += " AND DATE(t.due_at) >= CURDATE() AND DATE(t.due_at) <= DATE_ADD(CURDATE(), INTERVAL 7 DAY) ";
+    const window = businessDayWindow(new Date(), 8);
+    Object.assign(params, { dayStart: window.start, dayEnd: window.end });
+    where += ` AND ((${isMailing} AND t.due_at >= :dayStart AND t.due_at < :dayEnd) OR (NOT (${isMailing}) AND DATE(t.due_at) >= CURDATE() AND DATE(t.due_at) <= DATE_ADD(CURDATE(), INTERVAL 7 DAY))) `;
   }
 
   const [[countRow]] = await db.query(
@@ -77,7 +84,7 @@ export async function listTodos({ ownerUserId, scope, keyword, page, pageSize })
     JOIN leads l ON l.id = t.lead_id
     ${where}
     ORDER BY
-      (t.due_at < NOW()) DESC,
+      ${isOverdue} DESC,
       t.due_at ASC,
       t.id DESC
     LIMIT ${ps} OFFSET ${offset}
@@ -86,7 +93,9 @@ export async function listTodos({ ownerUserId, scope, keyword, page, pageSize })
   );
 
   return {
-    rows,
+    rows: rows.map(row => row.task_type.startsWith('mailing_') && row.due_at
+      ? { ...row, due_instant: fromUtcSql(row.due_at).toISOString(), due_label: wallTime(fromUtcSql(row.due_at)) + ' Europe/Berlin' }
+      : row),
     pagination: buildPagination({ page: p, pageSize: ps, total: Number(countRow?.cnt || 0) }),
   };
 }
@@ -135,7 +144,7 @@ export async function skipTodo({ todoId, remark }) {
     `
     UPDATE todo_tasks
     SET status='skip', remark=:remark, updated_at=CURRENT_TIMESTAMP
-    WHERE id=:id AND status IN ('pending','planned')
+    WHERE id=:id AND task_type NOT IN ('mailing_due','mailing_exception') AND status IN ('pending','planned')
     `,
     { id: tid, remark: remark || null }
   );

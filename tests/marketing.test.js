@@ -6,6 +6,7 @@ import {
   wallTime,
   addNaturalMonths,
   utcSql,
+  businessDayWindow,
 } from "../services/mailingCalendar.js";
 import {
   parseTrackSummary,
@@ -28,6 +29,10 @@ const node = (desc, time = "2026-03-06 12:00:00", code) => ({
   processInfo: desc,
   upload_Time: time,
   infoContent: code,
+});
+test("待办德国业务日边界跨越冬夏令时仍使用UTC查询", () => {
+  assert.deepEqual(businessDayWindow(new Date('2026-03-29T12:00:00Z')), { start: '2026-03-28 23:00:00', end: '2026-03-29 22:00:00' });
+  assert.deepEqual(businessDayWindow(new Date('2026-10-25T12:00:00Z')), { start: '2026-10-24 22:00:00', end: '2026-10-25 23:00:00' });
 });
 test("自然月月末、闰年、夏令时与固定业务时区", () => {
   assert.equal(

@@ -39,6 +39,11 @@ export function utcSql(date) {
 export function fromUtcSql(s) {
   return new Date(String(s).replace(" ", "T") + "Z");
 }
+export function businessDayWindow(now = new Date(), days = 1) {
+  const date = wallTime(now).slice(0, 10);
+  const end = new Date(Date.parse(date + "T00:00:00Z") + days * 86400000).toISOString().slice(0, 10);
+  return { start: utcSql(wallToUtc(date + " 00:00:00")), end: utcSql(wallToUtc(end + " 00:00:00")) };
+}
 export function addNaturalMonths(date, months, zone = BUSINESS_ZONE) {
   if (!Number.isSafeInteger(months) || months < 1 || months > 1200)
     throw Error("周期月份须为 1–1200 的整数");
